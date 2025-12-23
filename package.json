@@ -1,0 +1,26 @@
+{
+  "name": "mv-studio",
+  "version": "1.0.0",
+  "description": "一站式 AI 音乐视频制作平台 - 整合歌词识别和 MV 自动生成",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "mv",
+    "music-video",
+    "ai",
+    "lyrics",
+    "asr",
+    "video-generation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "uuid": "^9.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

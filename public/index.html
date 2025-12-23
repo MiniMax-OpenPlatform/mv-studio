@@ -1,0 +1,1678 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MV Studio - 一站式 MV 制作</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 30px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            color: rgba(255,255,255,0.6);
+        }
+
+        /* 步骤导航 */
+        .steps-nav {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .step-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 25px;
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s;
+        }
+
+        .step-item.active {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-color: transparent;
+        }
+
+        .step-item.completed {
+            background: rgba(76, 175, 80, 0.2);
+            border-color: #4caf50;
+        }
+
+        .step-number {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .step-item.active .step-number {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .step-item.completed .step-number {
+            background: #4caf50;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 40px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .step-content {
+            display: none;
+        }
+
+        .step-content.active {
+            display: block;
+        }
+
+        /* 上传区域 */
+        .upload-zone {
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 15px;
+            padding: 60px 40px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .upload-zone .icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+
+        .upload-zone h3 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+
+        .upload-zone p {
+            color: rgba(255,255,255,0.6);
+        }
+
+        /* 按钮 */
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .btn-success {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ff9800;
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 进度条 */
+        .progress-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            margin-top: 10px;
+        }
+
+        /* 歌词列表 */
+        .lyrics-list {
+            max-height: 400px;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .lyric-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.05);
+            transition: all 0.2s;
+        }
+
+        .lyric-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .lyric-time {
+            color: #667eea;
+            font-family: monospace;
+            font-size: 14px;
+            min-width: 140px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .lyric-time-input {
+            width: 50px;
+            padding: 2px 4px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            background: transparent;
+            color: #667eea;
+            font-family: monospace;
+            font-size: 14px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .lyric-time-input:hover {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: rgba(102, 126, 234, 0.3);
+        }
+
+        .lyric-time-input:focus {
+            outline: none;
+            background: rgba(0, 0, 0, 0.3);
+            border-color: #667eea;
+        }
+
+        .lyric-time-sep {
+            color: rgba(255,255,255,0.3);
+        }
+
+        .lyric-text {
+            flex: 1;
+            cursor: text;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .lyric-text:hover {
+            background: rgba(255,255,255,0.05);
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        .lyric-text:focus {
+            outline: none;
+            background: rgba(0,0,0,0.3);
+            border-color: #667eea;
+        }
+
+        .lyric-text.editing {
+            background: rgba(0,0,0,0.3);
+            border-color: #667eea;
+        }
+
+        .lyric-text.modified {
+            color: #4caf50;
+        }
+
+        .lyric-special {
+            color: #ff9800;
+            font-style: italic;
+        }
+
+        .lyric-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .lyric-item:hover .lyric-actions {
+            opacity: 1;
+        }
+
+        .lyric-btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .lyric-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .lyric-btn-save {
+            background: rgba(76, 175, 80, 0.3);
+        }
+
+        .lyric-btn-save:hover {
+            background: rgba(76, 175, 80, 0.5);
+        }
+
+        .lyric-btn-delete {
+            background: rgba(244, 67, 54, 0.3);
+        }
+
+        .lyric-btn-delete:hover {
+            background: rgba(244, 67, 54, 0.5);
+        }
+
+        .lyric-btn-add {
+            background: rgba(33, 150, 243, 0.3);
+        }
+
+        .lyric-btn-add:hover {
+            background: rgba(33, 150, 243, 0.5);
+        }
+
+        .lyric-item.deleting {
+            opacity: 0.5;
+            transform: translateX(20px);
+            transition: all 0.3s;
+        }
+
+        .lyric-item.new-item {
+            animation: fadeIn 0.3s ease;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 图片确认网格 */
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .image-card {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .image-card.confirmed {
+            border-color: #4caf50;
+        }
+
+        .image-card.regenerating {
+            opacity: 0.7;
+        }
+
+        .image-card img {
+            width: 100%;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            background: rgba(255,255,255,0.05);
+        }
+
+        .image-card-body {
+            padding: 15px;
+        }
+
+        .image-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .image-card-index {
+            background: rgba(102, 126, 234, 0.3);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        .image-card-time {
+            color: rgba(255,255,255,0.5);
+            font-size: 12px;
+        }
+
+        .image-card-lyric {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: rgba(255,255,255,0.9);
+        }
+
+        .image-card-prompt {
+            font-size: 12px;
+            color: rgba(255,255,255,0.5);
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 6px;
+            max-height: 80px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+
+        .image-card-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .image-card-actions .btn {
+            flex: 1;
+            padding: 8px 12px;
+            font-size: 13px;
+            min-width: 80px;
+        }
+
+        /* 弹窗 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #1a1a2e;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(0,0,0,0.3);
+            color: white;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        /* 状态统计 */
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: rgba(255,255,255,0.5);
+        }
+
+        /* 完成页面 */
+        .complete-section {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .complete-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+
+        .complete-section h2 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .complete-section p {
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 30px;
+        }
+
+        /* 隐藏的文件输入 */
+        input[type="file"] {
+            display: none;
+        }
+
+        /* 滚动条 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+        }
+
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        .badge-success {
+            background: rgba(76, 175, 80, 0.3);
+            color: #4caf50;
+        }
+
+        .badge-warning {
+            background: rgba(255, 152, 0, 0.3);
+            color: #ff9800;
+        }
+
+        /* 歌词来源选项卡 */
+        .source-option {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 30px 40px;
+            cursor: pointer;
+            transition: all 0.3s;
+            max-width: 280px;
+            text-align: center;
+        }
+
+        .source-option:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            transform: translateY(-5px);
+        }
+
+        .source-icon {
+            font-size: 50px;
+            margin-bottom: 15px;
+        }
+
+        .source-option h3 {
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .source-option p {
+            color: rgba(255,255,255,0.6);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>MV Studio</h1>
+            <p>一站式 AI 音乐视频制作平台</p>
+        </header>
+
+        <!-- 步骤导航 -->
+        <div class="steps-nav">
+            <div class="step-item active" data-step="1">
+                <span class="step-number">1</span>
+                <span>上传音频</span>
+            </div>
+            <div class="step-item" data-step="2">
+                <span class="step-number">2</span>
+                <span>歌词识别</span>
+            </div>
+            <div class="step-item" data-step="3">
+                <span class="step-number">3</span>
+                <span>歌词确认</span>
+            </div>
+            <div class="step-item" data-step="4">
+                <span class="step-number">4</span>
+                <span>图片确认</span>
+            </div>
+            <div class="step-item" data-step="5">
+                <span class="step-number">5</span>
+                <span>生成 MV</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Step 1: 上传音频 -->
+            <div class="step-content active" id="step1">
+                <div class="upload-zone" id="uploadZone">
+                    <div class="icon">🎵</div>
+                    <h3>拖拽或点击上传音频文件</h3>
+                    <p>支持 MP3、WAV、M4A 格式</p>
+                    <input type="file" id="audioInput" accept="audio/*">
+                </div>
+                <div id="uploadProgress" style="display: none; margin-top: 20px;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="uploadProgressFill" style="width: 0%"></div>
+                    </div>
+                    <p class="progress-text" id="uploadProgressText">上传中...</p>
+                </div>
+            </div>
+
+            <!-- Step 2: 歌词来源选择 -->
+            <div class="step-content" id="step2">
+                <!-- 选择模式 -->
+                <div id="lyricsSourceChoice" style="text-align: center; padding: 40px 20px;">
+                    <h2 style="margin-bottom: 30px;">选择歌词来源</h2>
+                    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                        <div class="source-option" onclick="startASRRecognition()">
+                            <div class="source-icon">🎤</div>
+                            <h3>AI 自动识别</h3>
+                            <p>使用语音识别技术自动提取歌词和时间戳</p>
+                        </div>
+                        <div class="source-option" onclick="showManualLyricsInput()">
+                            <div class="source-icon">📝</div>
+                            <h3>手动输入歌词</h3>
+                            <p>粘贴已有的 LRC 格式歌词或纯文本歌词</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ASR 识别进度 -->
+                <div id="asrProgress" style="display: none; text-align: center; padding: 60px 20px;">
+                    <div class="icon" style="font-size: 60px; margin-bottom: 20px;">🎤</div>
+                    <h3>正在识别歌词...</h3>
+                    <div class="progress-bar" style="max-width: 400px; margin: 20px auto;">
+                        <div class="progress-fill" id="recognizeProgressFill" style="width: 0%"></div>
+                    </div>
+                    <p class="progress-text" id="recognizeProgressText">请稍候，AI 正在分析音频</p>
+                </div>
+
+                <!-- 手动输入歌词 -->
+                <div id="manualLyricsInput" style="display: none; padding: 20px;">
+                    <div class="action-bar">
+                        <h2>输入歌词</h2>
+                        <button class="btn btn-secondary" onclick="showLyricsSourceChoice()">← 返回</button>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; color: rgba(255,255,255,0.7);">
+                            支持 LRC 格式（带时间戳）或纯文本（将自动分配时间）
+                        </label>
+                        <textarea id="manualLyricsTextarea" placeholder="[00:00.00]第一句歌词
+[00:05.00]第二句歌词
+...
+
+或直接输入纯文本歌词（每行一句）：
+第一句歌词
+第二句歌词
+..." style="width: 100%; min-height: 300px; padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.3); color: white; font-size: 14px; font-family: monospace; resize: vertical;"></textarea>
+                    </div>
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button class="btn btn-primary" onclick="submitManualLyrics()">确认歌词</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: 歌词确认 -->
+            <div class="step-content" id="step3">
+                <div class="action-bar">
+                    <h2>确认歌词 <span class="badge badge-success" id="lyricsCount">0 句</span></h2>
+                    <div>
+                        <button class="btn btn-secondary" onclick="addNewLyricAtEnd()">➕ 添加歌词</button>
+                        <button class="btn btn-secondary" id="exportLrcBtn">导出 LRC</button>
+                        <button class="btn btn-primary" id="startMvBtn">开始生成 MV</button>
+                    </div>
+                </div>
+                <div class="lyrics-list" id="lyricsList"></div>
+            </div>
+
+            <!-- Step 4: 图片确认 -->
+            <div class="step-content" id="step4">
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <div class="stat-value" id="confirmedCount">0</div>
+                        <div class="stat-label">已确认</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="pendingCount">0</div>
+                        <div class="stat-label">待确认</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="totalImages">0</div>
+                        <div class="stat-label">总数</div>
+                    </div>
+                </div>
+                <div class="action-bar">
+                    <h2>确认分镜图片</h2>
+                    <div>
+                        <button class="btn btn-secondary" id="confirmAllBtn">全部确认</button>
+                        <button class="btn btn-primary" id="continueMvBtn" disabled>继续生成 MV</button>
+                    </div>
+                </div>
+                <div class="image-grid" id="imageGrid"></div>
+            </div>
+
+            <!-- Step 5: 生成 MV -->
+            <div class="step-content" id="step5">
+                <div id="generatingSection" style="text-align: center; padding: 60px 20px;">
+                    <div class="icon" style="font-size: 60px; margin-bottom: 20px;">🎬</div>
+                    <h3>正在生成 MV...</h3>
+                    <div class="progress-bar" style="max-width: 400px; margin: 20px auto;">
+                        <div class="progress-fill" id="mvProgressFill" style="width: 0%"></div>
+                    </div>
+                    <p class="progress-text" id="mvProgressText">AI 正在努力工作中</p>
+                </div>
+                <div id="completeSection" class="complete-section" style="display: none;">
+                    <div class="complete-icon">🎉</div>
+                    <h2>MV 制作完成!</h2>
+                    <p>您的音乐视频已经准备就绪</p>
+                    <button class="btn btn-primary" id="downloadMvBtn" style="font-size: 18px; padding: 15px 40px;">
+                        下载 MV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prompt 编辑弹窗 -->
+    <div class="modal" id="promptModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>编辑 Prompt</h3>
+                <button class="modal-close" onclick="closePromptModal()">&times;</button>
+            </div>
+            <p style="margin-bottom: 15px; color: rgba(255,255,255,0.6);">
+                修改描述词后将使用新的 Prompt 重新生成图片
+            </p>
+            <textarea id="promptTextarea" rows="5"></textarea>
+            <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                <button class="btn btn-secondary" onclick="closePromptModal()">取消</button>
+                <button class="btn btn-primary" onclick="regenerateWithNewPrompt()">重新生成</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局状态
+        let projectId = null;
+        let currentStep = 1;
+        let pollInterval = null;
+
+        // DOM 元素
+        const uploadZone = document.getElementById('uploadZone');
+        const audioInput = document.getElementById('audioInput');
+
+        // 初始化
+        function init() {
+            // 上传区域事件
+            uploadZone.addEventListener('click', () => audioInput.click());
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.classList.add('dragover');
+            });
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.classList.remove('dragover');
+            });
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleAudioFile(files[0]);
+                }
+            });
+            audioInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleAudioFile(e.target.files[0]);
+                }
+            });
+
+            // 按钮事件
+            document.getElementById('exportLrcBtn').addEventListener('click', exportLrc);
+            document.getElementById('startMvBtn').addEventListener('click', startMvGeneration);
+            document.getElementById('confirmAllBtn').addEventListener('click', confirmAllImages);
+            document.getElementById('continueMvBtn').addEventListener('click', continueMvGeneration);
+            document.getElementById('downloadMvBtn').addEventListener('click', downloadMv);
+        }
+
+        // 切换步骤
+        function goToStep(step) {
+            currentStep = step;
+
+            // 更新步骤导航
+            document.querySelectorAll('.step-item').forEach((item, index) => {
+                item.classList.remove('active', 'completed');
+                if (index + 1 < step) {
+                    item.classList.add('completed');
+                } else if (index + 1 === step) {
+                    item.classList.add('active');
+                }
+            });
+
+            // 显示对应内容
+            document.querySelectorAll('.step-content').forEach((content, index) => {
+                content.classList.toggle('active', index + 1 === step);
+            });
+        }
+
+        // 存储音频时长
+        let audioDuration = 0;
+
+        // 上传音频文件
+        async function handleAudioFile(file) {
+            document.getElementById('uploadProgress').style.display = 'block';
+            document.getElementById('uploadProgressText').textContent = '正在上传...';
+
+            const formData = new FormData();
+            formData.append('audio', file);
+
+            try {
+                const response = await fetch('/api/upload-audio', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                if (result.error) throw new Error(result.error);
+
+                projectId = result.projectId;
+                audioDuration = result.duration || 180;
+                document.getElementById('uploadProgressFill').style.width = '100%';
+                document.getElementById('uploadProgressText').textContent = '上传完成';
+
+                // 跳转到歌词来源选择
+                goToStep(2);
+                showLyricsSourceChoice();
+
+            } catch (error) {
+                alert('上传失败: ' + error.message);
+                document.getElementById('uploadProgress').style.display = 'none';
+            }
+        }
+
+        // 显示歌词来源选择
+        function showLyricsSourceChoice() {
+            document.getElementById('lyricsSourceChoice').style.display = 'block';
+            document.getElementById('asrProgress').style.display = 'none';
+            document.getElementById('manualLyricsInput').style.display = 'none';
+        }
+
+        // 显示手动输入歌词界面
+        function showManualLyricsInput() {
+            document.getElementById('lyricsSourceChoice').style.display = 'none';
+            document.getElementById('asrProgress').style.display = 'none';
+            document.getElementById('manualLyricsInput').style.display = 'block';
+        }
+
+        // 开始 ASR 识别
+        async function startASRRecognition() {
+            document.getElementById('lyricsSourceChoice').style.display = 'none';
+            document.getElementById('asrProgress').style.display = 'block';
+            document.getElementById('manualLyricsInput').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/recognize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId })
+                });
+
+                const result = await response.json();
+                if (result.error) throw new Error(result.error);
+
+                // 开始轮询结果
+                pollRecognitionResult();
+
+            } catch (error) {
+                alert('识别失败: ' + error.message);
+                showLyricsSourceChoice();
+            }
+        }
+
+        // 提交手动输入的歌词
+        async function submitManualLyrics() {
+            const lyricsText = document.getElementById('manualLyricsTextarea').value.trim();
+
+            if (!lyricsText) {
+                alert('请输入歌词内容');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/import-lyrics', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        projectId,
+                        lyricsText,
+                        audioDuration
+                    })
+                });
+
+                const result = await response.json();
+                if (result.error) throw new Error(result.error);
+
+                // 显示歌词确认页面
+                showLyrics(result.lyrics);
+                goToStep(3);
+
+            } catch (error) {
+                alert('歌词导入失败: ' + error.message);
+            }
+        }
+
+        // 轮询识别结果
+        function pollRecognitionResult() {
+            let progress = 10;
+            pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/get-result', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ projectId })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.status === 'completed') {
+                        clearInterval(pollInterval);
+                        document.getElementById('recognizeProgressFill').style.width = '100%';
+                        showLyrics(result.lyrics);
+                        goToStep(3);
+                    } else {
+                        progress = Math.min(progress + 5, 90);
+                        document.getElementById('recognizeProgressFill').style.width = progress + '%';
+                        document.getElementById('recognizeProgressText').textContent =
+                            result.status === 'waiting' ? '排队等待中...' : '识别中...';
+                    }
+
+                } catch (error) {
+                    console.error('轮询失败:', error);
+                }
+            }, 3000);
+        }
+
+        // 存储歌词数据
+        let lyricsData = [];
+        let modifiedLyrics = new Set();
+
+        // 显示歌词列表
+        function showLyrics(lyrics) {
+            lyricsData = lyrics;
+            modifiedLyrics = new Set();
+            const container = document.getElementById('lyricsList');
+            document.getElementById('lyricsCount').textContent = lyrics.length + ' 句';
+
+            container.innerHTML = lyrics.map((lyric, index) => `
+                <div class="lyric-item" data-index="${index}">
+                    <span class="lyric-time">
+                        <input type="text" class="lyric-time-input"
+                               data-index="${index}" data-type="start"
+                               value="${formatTime(lyric.startTime)}"
+                               onchange="onTimeChange(this)"
+                               onkeydown="onTimeKeydown(event, this)">
+                        <span class="lyric-time-sep">-</span>
+                        <input type="text" class="lyric-time-input"
+                               data-index="${index}" data-type="end"
+                               value="${formatTime(lyric.endTime)}"
+                               onchange="onTimeChange(this)"
+                               onkeydown="onTimeKeydown(event, this)">
+                    </span>
+                    <span class="lyric-text ${lyric.specialType ? 'lyric-special' : ''}"
+                          contenteditable="true"
+                          data-index="${index}"
+                          data-original="${escapeHtml(lyric.text)}"
+                          onfocus="onLyricFocus(this)"
+                          onblur="onLyricBlur(this)"
+                          onkeydown="onLyricKeydown(event, this)"
+                          onpaste="onLyricPaste(event)">${lyric.text}</span>
+                    <div class="lyric-actions">
+                        <button class="lyric-btn lyric-btn-add" onclick="insertLyricAfter(${index})" title="在此行后插入">➕</button>
+                        <button class="lyric-btn" onclick="resetLyric(${index})" title="恢复原始">↩️</button>
+                        <button class="lyric-btn lyric-btn-delete" onclick="deleteLyric(${index})" title="删除此行">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 时间戳修改
+        function onTimeChange(input) {
+            const index = parseInt(input.dataset.index);
+            const type = input.dataset.type; // 'start' or 'end'
+            const timeStr = input.value.trim();
+
+            // 解析时间格式 MM:SS
+            const seconds = parseTime(timeStr);
+            if (seconds === null) {
+                // 无效格式，恢复原值
+                input.value = formatTime(type === 'start' ? lyricsData[index].startTime : lyricsData[index].endTime);
+                return;
+            }
+
+            // 更新本地数据
+            if (type === 'start') {
+                lyricsData[index].startTime = seconds;
+            } else {
+                lyricsData[index].endTime = seconds;
+            }
+            lyricsData[index].duration = lyricsData[index].endTime - lyricsData[index].startTime;
+
+            // 保存到后端
+            saveTimeChange(index, lyricsData[index].startTime, lyricsData[index].endTime);
+
+            // 格式化显示
+            input.value = formatTime(seconds);
+        }
+
+        // 时间输入框回车
+        function onTimeKeydown(event, input) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                input.blur();
+            }
+        }
+
+        // 解析时间字符串为秒数
+        function parseTime(str) {
+            // 支持格式: MM:SS, M:SS, MM:SS.ms
+            const match = str.match(/^(\d{1,2}):(\d{2})(?:\.(\d{1,2}))?$/);
+            if (!match) return null;
+
+            const mins = parseInt(match[1]);
+            const secs = parseInt(match[2]);
+            const ms = match[3] ? parseInt(match[3].padEnd(2, '0')) / 100 : 0;
+
+            if (secs >= 60) return null;
+
+            return mins * 60 + secs + ms;
+        }
+
+        // 保存时间戳修改到后端
+        async function saveTimeChange(index, startTime, endTime) {
+            try {
+                await fetch('/api/update-lyric-time', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId, index, startTime, endTime })
+                });
+                console.log(`时间戳 #${index} 已更新: ${formatTime(startTime)} - ${formatTime(endTime)}`);
+            } catch (error) {
+                console.error('保存时间戳失败:', error);
+            }
+        }
+
+        // 粘贴时只保留纯文本，去除格式
+        function onLyricPaste(event) {
+            event.preventDefault();
+            const text = (event.clipboardData || window.clipboardData).getData('text/plain');
+            document.execCommand('insertText', false, text);
+        }
+
+        // 歌词获得焦点
+        function onLyricFocus(element) {
+            element.classList.add('editing');
+        }
+
+        // 歌词失去焦点（保存修改）
+        function onLyricBlur(element) {
+            element.classList.remove('editing');
+            const index = parseInt(element.dataset.index);
+            const newText = element.textContent.trim();
+            const originalText = element.dataset.original;
+
+            if (newText !== originalText) {
+                // 标记为已修改
+                element.classList.add('modified');
+                modifiedLyrics.add(index);
+                lyricsData[index].text = newText;
+
+                // 自动保存到后端
+                saveLyricChange(index, newText);
+            } else {
+                element.classList.remove('modified');
+                modifiedLyrics.delete(index);
+            }
+        }
+
+        // 回车键保存
+        function onLyricKeydown(event, element) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                element.blur();
+            }
+            if (event.key === 'Escape') {
+                const index = parseInt(element.dataset.index);
+                resetLyric(index);
+                element.blur();
+            }
+        }
+
+        // 恢复原始歌词
+        function resetLyric(index) {
+            const element = document.querySelector(`.lyric-text[data-index="${index}"]`);
+            if (element) {
+                const originalText = element.dataset.original;
+                element.textContent = originalText;
+                element.classList.remove('modified');
+                modifiedLyrics.delete(index);
+                lyricsData[index].text = originalText;
+
+                // 保存到后端
+                saveLyricChange(index, originalText);
+            }
+        }
+
+        // 保存歌词修改到后端
+        async function saveLyricChange(index, text) {
+            try {
+                await fetch('/api/update-lyric', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId, index, text })
+                });
+            } catch (error) {
+                console.error('保存歌词失败:', error);
+            }
+        }
+
+        // 在指定位置后插入歌词
+        async function insertLyricAfter(index) {
+            // 计算新歌词的时间（在当前行和下一行之间）
+            const currentLyric = lyricsData[index];
+            const nextLyric = lyricsData[index + 1];
+
+            let startTime, endTime;
+            if (nextLyric) {
+                // 在两行之间插入
+                startTime = currentLyric.endTime;
+                endTime = nextLyric.startTime;
+            } else {
+                // 在最后一行后插入
+                startTime = currentLyric.endTime;
+                endTime = Math.min(startTime + 5, audioDuration);
+            }
+
+            const newLyric = {
+                startTime,
+                endTime,
+                duration: endTime - startTime,
+                text: '新歌词'
+            };
+
+            try {
+                const response = await fetch('/api/add-lyric', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        projectId,
+                        afterIndex: index,
+                        lyric: newLyric
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // 更新本地数据
+                    lyricsData.splice(index + 1, 0, newLyric);
+                    modifiedLyrics.clear();
+
+                    // 重新渲染
+                    showLyrics(lyricsData);
+
+                    // 自动聚焦到新行的文本编辑
+                    setTimeout(() => {
+                        const newTextEl = document.querySelector(`.lyric-text[data-index="${index + 1}"]`);
+                        if (newTextEl) {
+                            newTextEl.focus();
+                            // 选中文本
+                            const range = document.createRange();
+                            range.selectNodeContents(newTextEl);
+                            const sel = window.getSelection();
+                            sel.removeAllRanges();
+                            sel.addRange(range);
+                        }
+                    }, 100);
+                } else {
+                    alert('添加失败: ' + (result.error || '未知错误'));
+                }
+
+            } catch (error) {
+                console.error('添加歌词失败:', error);
+                alert('添加失败: ' + error.message);
+            }
+        }
+
+        // 在末尾添加新歌词
+        async function addNewLyricAtEnd() {
+            if (lyricsData.length === 0) {
+                // 如果没有歌词，创建第一行
+                const newLyric = {
+                    startTime: 0,
+                    endTime: 5,
+                    duration: 5,
+                    text: '新歌词'
+                };
+
+                try {
+                    const response = await fetch('/api/add-lyric', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            projectId,
+                            afterIndex: -1,
+                            lyric: newLyric
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        lyricsData.push(newLyric);
+                        showLyrics(lyricsData);
+
+                        setTimeout(() => {
+                            const newTextEl = document.querySelector('.lyric-text[data-index="0"]');
+                            if (newTextEl) {
+                                newTextEl.focus();
+                                const range = document.createRange();
+                                range.selectNodeContents(newTextEl);
+                                const sel = window.getSelection();
+                                sel.removeAllRanges();
+                                sel.addRange(range);
+                            }
+                        }, 100);
+                    }
+                } catch (error) {
+                    alert('添加失败: ' + error.message);
+                }
+            } else {
+                // 在最后一行后插入
+                insertLyricAfter(lyricsData.length - 1);
+            }
+        }
+
+        // 删除歌词
+        async function deleteLyric(index) {
+            if (!confirm(`确定要删除这行歌词吗？\n"${lyricsData[index].text}"`)) {
+                return;
+            }
+
+            const item = document.querySelector(`.lyric-item[data-index="${index}"]`);
+            if (item) {
+                item.classList.add('deleting');
+            }
+
+            try {
+                const response = await fetch('/api/delete-lyric', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId, index })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // 从本地数据中移除
+                    lyricsData.splice(index, 1);
+                    modifiedLyrics.clear();
+
+                    // 重新渲染列表
+                    showLyrics(lyricsData);
+                } else {
+                    alert('删除失败: ' + result.error);
+                    if (item) item.classList.remove('deleting');
+                }
+
+            } catch (error) {
+                console.error('删除歌词失败:', error);
+                alert('删除失败: ' + error.message);
+                if (item) item.classList.remove('deleting');
+            }
+        }
+
+        // 格式化时间
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // 导出 LRC
+        function exportLrc() {
+            window.open(`/api/export-lrc?projectId=${projectId}`, '_blank');
+        }
+
+        // 开始 MV 生成
+        async function startMvGeneration() {
+            goToStep(4);
+            document.getElementById('imageGrid').innerHTML = '<p style="text-align: center; padding: 40px;">正在生成分镜和图片...</p>';
+
+            try {
+                const response = await fetch('/api/start-mv', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId })
+                });
+
+                const result = await response.json();
+                if (result.error) throw new Error(result.error);
+
+                // 轮询状态直到图片生成完成
+                pollProjectStatus();
+
+            } catch (error) {
+                alert('生成失败: ' + error.message);
+            }
+        }
+
+        // 轮询项目状态
+        function pollProjectStatus() {
+            pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/project-status?projectId=${projectId}`);
+                    const status = await response.json();
+
+                    console.log('Project status:', status.status, status.progress);
+
+                    if (status.status === 'awaiting_image_confirm') {
+                        clearInterval(pollInterval);
+                        loadImagesForConfirmation();
+                    } else if (status.status === 'completed') {
+                        clearInterval(pollInterval);
+                        showCompleted();
+                    } else if (status.status === 'failed') {
+                        clearInterval(pollInterval);
+                        alert('生成失败: ' + status.error);
+                    }
+
+                    // 更新进度（如果在 step 5）
+                    if (currentStep === 5 && status.status !== 'awaiting_image_confirm') {
+                        document.getElementById('mvProgressFill').style.width = status.progress + '%';
+                        document.getElementById('mvProgressText').textContent = `进度: ${status.progress}%`;
+                    }
+
+                } catch (error) {
+                    console.error('状态查询失败:', error);
+                }
+            }, 2000);
+        }
+
+        // 加载图片列表
+        async function loadImagesForConfirmation() {
+            try {
+                const response = await fetch(`/api/get-images?projectId=${projectId}`);
+                const data = await response.json();
+
+                updateImageStats(data.confirmation);
+                renderImageGrid(data.images);
+
+            } catch (error) {
+                console.error('加载图片失败:', error);
+            }
+        }
+
+        // 更新图片统计
+        function updateImageStats(confirmation) {
+            document.getElementById('confirmedCount').textContent = confirmation.confirmed;
+            document.getElementById('pendingCount').textContent = confirmation.pending;
+            document.getElementById('totalImages').textContent = confirmation.total;
+
+            const continueBtm = document.getElementById('continueMvBtn');
+            continueBtm.disabled = confirmation.pending > 0;
+        }
+
+        // 渲染图片网格
+        function renderImageGrid(images) {
+            const container = document.getElementById('imageGrid');
+
+            container.innerHTML = images.map(img => `
+                <div class="image-card ${img.confirmed ? 'confirmed' : ''}" data-index="${img.index}">
+                    <img src="${img.imageUrl}?t=${Date.now()}" alt="Scene ${img.index}"
+                         onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 9%22><rect fill=%22%23333%22 width=%2216%22 height=%229%22/><text x=%228%22 y=%225%22 fill=%22%23666%22 text-anchor=%22middle%22 font-size=%221%22>Loading...</text></svg>'">
+                    <div class="image-card-body">
+                        <div class="image-card-header">
+                            <span class="image-card-index">#${img.index} ${img.hasCharacter ? '👤' : '🏞️'}</span>
+                            <span class="image-card-time">${formatTime(img.startTime)}</span>
+                        </div>
+                        <div class="image-card-lyric">${img.lyric}</div>
+                        <div class="image-card-prompt">${img.prompt}</div>
+                        <div class="image-card-actions">
+                            <button class="btn btn-success" onclick="confirmImage(${img.index})" ${img.confirmed ? 'disabled' : ''}>
+                                ${img.confirmed ? '✓ 已确认' : '确认'}
+                            </button>
+                            <button class="btn btn-warning" onclick="regenerateImage(${img.index})">
+                                🔄 重新生成
+                            </button>
+                            <button class="btn btn-secondary" onclick="openPromptModal(${img.index}, '${escapeHtml(img.prompt)}')">
+                                ✏️ 编辑
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 确认单张图片
+        async function confirmImage(index) {
+            try {
+                const response = await fetch('/api/confirm-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId, index })
+                });
+
+                const result = await response.json();
+                updateImageStats(result);
+
+                // 更新卡片样式
+                const card = document.querySelector(`.image-card[data-index="${index}"]`);
+                if (card) {
+                    card.classList.add('confirmed');
+                    card.querySelector('.btn-success').disabled = true;
+                    card.querySelector('.btn-success').textContent = '✓ 已确认';
+                }
+
+            } catch (error) {
+                console.error('确认失败:', error);
+            }
+        }
+
+        // 确认所有图片
+        async function confirmAllImages() {
+            try {
+                const response = await fetch('/api/confirm-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId })
+                });
+
+                const result = await response.json();
+                updateImageStats(result);
+
+                // 更新所有卡片
+                document.querySelectorAll('.image-card').forEach(card => {
+                    card.classList.add('confirmed');
+                    const btn = card.querySelector('.btn-success');
+                    btn.disabled = true;
+                    btn.textContent = '✓ 已确认';
+                });
+
+            } catch (error) {
+                console.error('全部确认失败:', error);
+            }
+        }
+
+        // 重新生成图片
+        async function regenerateImage(index) {
+            const card = document.querySelector(`.image-card[data-index="${index}"]`);
+            if (card) {
+                card.classList.add('regenerating');
+            }
+
+            try {
+                const response = await fetch('/api/regenerate-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId, index })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // 重新加载图片
+                    const img = card.querySelector('img');
+                    img.src = result.imageUrl;
+
+                    card.classList.remove('regenerating', 'confirmed');
+                    const btn = card.querySelector('.btn-success');
+                    btn.disabled = false;
+                    btn.textContent = '确认';
+                }
+
+                // 更新统计
+                await loadImagesForConfirmation();
+
+            } catch (error) {
+                console.error('重新生成失败:', error);
+                alert('重新生成失败: ' + error.message);
+            }
+
+            if (card) {
+                card.classList.remove('regenerating');
+            }
+        }
+
+        // Prompt 编辑相关
+        let editingIndex = null;
+
+        function openPromptModal(index, prompt) {
+            editingIndex = index;
+            document.getElementById('promptTextarea').value = prompt.replace(/\\'/g, "'");
+            document.getElementById('promptModal').classList.add('active');
+        }
+
+        function closePromptModal() {
+            document.getElementById('promptModal').classList.remove('active');
+            editingIndex = null;
+        }
+
+        async function regenerateWithNewPrompt() {
+            const newPrompt = document.getElementById('promptTextarea').value;
+            const index = editingIndex; // 先保存 index，再关闭弹窗
+            closePromptModal();
+
+            if (index === null) {
+                console.error('编辑索引无效');
+                return;
+            }
+
+            const card = document.querySelector(`.image-card[data-index="${index}"]`);
+            if (card) {
+                card.classList.add('regenerating');
+            }
+
+            try {
+                const response = await fetch('/api/regenerate-image', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId, index, newPrompt })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    await loadImagesForConfirmation();
+                } else {
+                    alert('重新生成失败: ' + (result.error || '未知错误'));
+                }
+
+            } catch (error) {
+                console.error('重新生成失败:', error);
+                alert('重新生成失败: ' + error.message);
+            } finally {
+                if (card) {
+                    card.classList.remove('regenerating');
+                }
+            }
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        // 继续生成 MV
+        async function continueMvGeneration() {
+            goToStep(5);
+            document.getElementById('generatingSection').style.display = 'block';
+            document.getElementById('completeSection').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/continue-mv', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        projectId,
+                        options: {
+                            allVideo: true // 使用 AI 视频模型生成所有分镜
+                        }
+                    })
+                });
+
+                const result = await response.json();
+                if (result.error) throw new Error(result.error);
+
+                // 轮询状态
+                pollProjectStatus();
+
+            } catch (error) {
+                alert('生成失败: ' + error.message);
+            }
+        }
+
+        // 显示完成
+        function showCompleted() {
+            goToStep(5);
+            document.getElementById('generatingSection').style.display = 'none';
+            document.getElementById('completeSection').style.display = 'block';
+        }
+
+        // 下载 MV
+        function downloadMv() {
+            window.open(`/api/download-mv?projectId=${projectId}`, '_blank');
+        }
+
+        // 启动
+        init();
+    </script>
+</body>
+</html>
