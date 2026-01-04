@@ -744,6 +744,34 @@
 
             <!-- Step 3: 歌词确认 -->
             <div class="step-content" id="step3">
+                <!-- 音频播放器 -->
+                <div class="audio-player-container" style="background: linear-gradient(135deg, rgba(102,126,234,0.2), rgba(118,75,162,0.2)); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                    <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 300px;">
+                            <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
+                                <button id="audioPlayBtn" onclick="toggleAudioPlay()" class="btn" style="width: 50px; height: 50px; border-radius: 50%; font-size: 20px; padding: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea, #764ba2);">
+                                    ▶
+                                </button>
+                                <div style="flex: 1;">
+                                    <div style="font-size: 14px; color: rgba(255,255,255,0.9); margin-bottom: 5px;">
+                                        <span id="audioCurrentTime">00:00</span> / <span id="audioDuration">00:00</span>
+                                    </div>
+                                    <input type="range" id="audioSeekBar" min="0" max="100" value="0"
+                                           style="width: 100%; cursor: pointer; accent-color: #667eea;"
+                                           oninput="seekAudio(this.value)">
+                                </div>
+                            </div>
+                            <audio id="audioPlayer" style="display: none;"></audio>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 18px;">🔊</span>
+                            <input type="range" id="audioVolume" min="0" max="100" value="80"
+                                   style="width: 100px; cursor: pointer; accent-color: #667eea;"
+                                   oninput="setAudioVolume(this.value)">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="action-bar">
                     <h2>确认歌词 <span class="badge badge-success" id="lyricsCount">0 句</span></h2>
                     <div>
@@ -781,11 +809,47 @@
                 <div class="image-grid" id="imageGrid"></div>
             </div>
 
-            <!-- Step 5: 生成 MV -->
+            <!-- Step 5: 视频确认 -->
             <div class="step-content" id="step5">
+                <div id="videoGeneratingSection" style="text-align: center; padding: 60px 20px;">
+                    <div class="icon" style="font-size: 60px; margin-bottom: 20px;">🎬</div>
+                    <h3>正在生成视频...</h3>
+                    <div class="progress-bar" style="max-width: 400px; margin: 20px auto;">
+                        <div class="progress-fill" id="videoProgressFill" style="width: 0%"></div>
+                    </div>
+                    <p class="progress-text" id="videoProgressText">AI 正在生成视频片段</p>
+                </div>
+                <div id="videoConfirmSection" style="display: none;">
+                    <div class="stats-bar">
+                        <div class="stat-item">
+                            <div class="stat-value" id="videoConfirmedCount">0</div>
+                            <div class="stat-label">已确认</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="videoPendingCount">0</div>
+                            <div class="stat-label">待确认</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="totalVideos">0</div>
+                            <div class="stat-label">总数</div>
+                        </div>
+                    </div>
+                    <div class="action-bar">
+                        <h2>确认视频片段</h2>
+                        <div>
+                            <button class="btn btn-secondary" id="confirmAllVideosBtn">全部确认</button>
+                            <button class="btn btn-primary" id="continueComposeMvBtn" disabled>合成 MV</button>
+                        </div>
+                    </div>
+                    <div class="image-grid" id="videoGrid"></div>
+                </div>
+            </div>
+
+            <!-- Step 6: 合成 MV -->
+            <div class="step-content" id="step6">
                 <div id="generatingSection" style="text-align: center; padding: 60px 20px;">
                     <div class="icon" style="font-size: 60px; margin-bottom: 20px;">🎬</div>
-                    <h3>正在生成 MV...</h3>
+                    <h3>正在合成 MV...</h3>
                     <div class="progress-bar" style="max-width: 400px; margin: 20px auto;">
                         <div class="progress-fill" id="mvProgressFill" style="width: 0%"></div>
                     </div>
@@ -795,19 +859,32 @@
                     <div class="complete-icon">🎉</div>
                     <h2>MV 制作完成!</h2>
                     <p>您的音乐视频已经准备就绪</p>
-                    <button class="btn btn-primary" id="downloadMvBtn" style="font-size: 18px; padding: 15px 40px;">
-                        下载 MV
-                    </button>
+
+                    <!-- 视频预览播放器 -->
+                    <div style="max-width: 900px; margin: 30px auto; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.4);">
+                        <video id="mvPreviewPlayer" controls style="width: 100%; display: block;">
+                            您的浏览器不支持视频播放
+                        </video>
+                    </div>
+
+                    <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
+                        <button class="btn btn-secondary" id="replayMvBtn" style="font-size: 16px; padding: 12px 30px;">
+                            🔄 重新播放
+                        </button>
+                        <button class="btn btn-primary" id="downloadMvBtn" style="font-size: 16px; padding: 12px 30px;">
+                            ⬇️ 下载 MV
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Prompt 编辑弹窗 -->
+    <!-- Prompt 编辑弹窗（图片）-->
     <div class="modal" id="promptModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>编辑 Prompt</h3>
+                <h3>编辑图片 Prompt</h3>
                 <button class="modal-close" onclick="closePromptModal()">&times;</button>
             </div>
             <p style="margin-bottom: 15px; color: rgba(255,255,255,0.6);">
@@ -817,6 +894,24 @@
             <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
                 <button class="btn btn-secondary" onclick="closePromptModal()">取消</button>
                 <button class="btn btn-primary" onclick="regenerateWithNewPrompt()">重新生成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Prompt 编辑弹窗 -->
+    <div class="modal" id="videoPromptModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>编辑视频动作描述</h3>
+                <button class="modal-close" onclick="closeVideoPromptModal()">&times;</button>
+            </div>
+            <p style="margin-bottom: 15px; color: rgba(255,255,255,0.6);">
+                修改动作描述后将使用新的 Prompt 重新生成视频（需要等待 2-5 分钟）
+            </p>
+            <textarea id="videoPromptTextarea" rows="5" placeholder="描述视频中的动作效果，例如：缓慢推进、人物转身、风吹动头发等"></textarea>
+            <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+                <button class="btn btn-secondary" onclick="closeVideoPromptModal()">取消</button>
+                <button class="btn btn-primary" onclick="regenerateVideoWithNewPrompt()">重新生成</button>
             </div>
         </div>
     </div>
@@ -861,7 +956,10 @@
             document.getElementById('startMvBtn').addEventListener('click', startMvGeneration);
             document.getElementById('confirmAllBtn').addEventListener('click', confirmAllImages);
             document.getElementById('continueMvBtn').addEventListener('click', continueMvGeneration);
+            document.getElementById('confirmAllVideosBtn').addEventListener('click', confirmAllVideos);
+            document.getElementById('continueComposeMvBtn').addEventListener('click', continueComposeMv);
             document.getElementById('downloadMvBtn').addEventListener('click', downloadMv);
+            document.getElementById('replayMvBtn').addEventListener('click', replayMv);
         }
 
         // 切换步骤
@@ -984,6 +1082,7 @@
                 // 显示歌词确认页面
                 showLyrics(result.lyrics);
                 goToStep(3);
+                initAudioPlayer();
 
             } catch (error) {
                 alert('歌词导入失败: ' + error.message);
@@ -1008,6 +1107,7 @@
                         document.getElementById('recognizeProgressFill').style.width = '100%';
                         showLyrics(result.lyrics);
                         goToStep(3);
+                        initAudioPlayer();
                     } else {
                         progress = Math.min(progress + 5, 90);
                         document.getElementById('recognizeProgressFill').style.width = progress + '%';
@@ -1035,6 +1135,7 @@
             container.innerHTML = lyrics.map((lyric, index) => `
                 <div class="lyric-item" data-index="${index}">
                     <span class="lyric-time">
+                        <button class="lyric-btn" onclick="jumpToLyricTime(${lyric.startTime})" title="跳转到此处" style="padding: 2px 6px; margin-right: 4px;">▶</button>
                         <input type="text" class="lyric-time-input"
                                data-index="${index}" data-type="start"
                                value="${formatTime(lyric.startTime)}"
@@ -1367,6 +1468,82 @@
             return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         }
 
+        // ========== 音频播放器功能 ==========
+
+        let audioUrl = null;
+
+        // 初始化音频播放器
+        function initAudioPlayer() {
+            const audio = document.getElementById('audioPlayer');
+            if (!audio || !projectId) return;
+
+            // 设置音频源
+            audioUrl = `/projects/${projectId}/audio.mp3`;
+            audio.src = audioUrl;
+            audio.volume = 0.8;
+
+            // 监听加载完成
+            audio.addEventListener('loadedmetadata', () => {
+                document.getElementById('audioDuration').textContent = formatTime(audio.duration);
+                document.getElementById('audioSeekBar').max = Math.floor(audio.duration);
+            });
+
+            // 监听播放进度
+            audio.addEventListener('timeupdate', () => {
+                document.getElementById('audioCurrentTime').textContent = formatTime(audio.currentTime);
+                document.getElementById('audioSeekBar').value = Math.floor(audio.currentTime);
+            });
+
+            // 监听播放结束
+            audio.addEventListener('ended', () => {
+                document.getElementById('audioPlayBtn').textContent = '▶';
+            });
+
+            // 加载失败时尝试其他格式
+            audio.addEventListener('error', () => {
+                // 尝试 wav 格式
+                if (audio.src.includes('.mp3')) {
+                    audio.src = `/projects/${projectId}/audio.wav`;
+                }
+            });
+        }
+
+        // 播放/暂停
+        function toggleAudioPlay() {
+            const audio = document.getElementById('audioPlayer');
+            const btn = document.getElementById('audioPlayBtn');
+
+            if (audio.paused) {
+                audio.play();
+                btn.textContent = '⏸';
+            } else {
+                audio.pause();
+                btn.textContent = '▶';
+            }
+        }
+
+        // 跳转到指定位置
+        function seekAudio(value) {
+            const audio = document.getElementById('audioPlayer');
+            audio.currentTime = parseFloat(value);
+        }
+
+        // 设置音量
+        function setAudioVolume(value) {
+            const audio = document.getElementById('audioPlayer');
+            audio.volume = value / 100;
+        }
+
+        // 跳转到指定歌词时间
+        function jumpToLyricTime(startTime) {
+            const audio = document.getElementById('audioPlayer');
+            audio.currentTime = startTime;
+            if (audio.paused) {
+                audio.play();
+                document.getElementById('audioPlayBtn').textContent = '⏸';
+            }
+        }
+
         // 导出 LRC
         function exportLrc() {
             window.open(`/api/export-lrc?projectId=${projectId}`, '_blank');
@@ -1407,6 +1584,9 @@
                     if (status.status === 'awaiting_image_confirm') {
                         clearInterval(pollInterval);
                         loadImagesForConfirmation();
+                    } else if (status.status === 'awaiting_video_confirm') {
+                        clearInterval(pollInterval);
+                        loadVideosForConfirmation();
                     } else if (status.status === 'completed') {
                         clearInterval(pollInterval);
                         showCompleted();
@@ -1415,10 +1595,16 @@
                         alert('生成失败: ' + status.error);
                     }
 
-                    // 更新进度（如果在 step 5）
-                    if (currentStep === 5 && status.status !== 'awaiting_image_confirm') {
+                    // 更新进度（如果在 step 5 视频生成中）
+                    if (currentStep === 5 && status.status === 'generating_videos') {
+                        document.getElementById('videoProgressFill').style.width = status.progress + '%';
+                        document.getElementById('videoProgressText').textContent = `生成视频: ${status.progress}%`;
+                    }
+
+                    // 更新进度（如果在 step 6 合成 MV 中）
+                    if (currentStep === 6 && status.status === 'composing_mv') {
                         document.getElementById('mvProgressFill').style.width = status.progress + '%';
-                        document.getElementById('mvProgressText').textContent = `进度: ${status.progress}%`;
+                        document.getElementById('mvProgressText').textContent = `合成进度: ${status.progress}%`;
                     }
 
                 } catch (error) {
@@ -1426,6 +1612,220 @@
                 }
             }, 2000);
         }
+
+        // ========== 视频确认相关函数 ==========
+
+        let currentVideoIndex = null;
+
+        // 加载视频列表
+        async function loadVideosForConfirmation() {
+            goToStep(5);
+            document.getElementById('videoGeneratingSection').style.display = 'none';
+            document.getElementById('videoConfirmSection').style.display = 'block';
+
+            try {
+                const response = await fetch(`/api/get-videos?projectId=${projectId}`);
+                const data = await response.json();
+
+                updateVideoStats(data.confirmation);
+                renderVideoGrid(data.videos);
+
+            } catch (error) {
+                console.error('加载视频失败:', error);
+            }
+        }
+
+        // 更新视频统计
+        function updateVideoStats(confirmation) {
+            document.getElementById('videoConfirmedCount').textContent = confirmation.confirmed;
+            document.getElementById('videoPendingCount').textContent = confirmation.pending;
+            document.getElementById('totalVideos').textContent = confirmation.total;
+
+            const continueBtn = document.getElementById('continueComposeMvBtn');
+            continueBtn.disabled = confirmation.pending > 0 || confirmation.regenerating > 0;
+        }
+
+        // 渲染视频网格
+        function renderVideoGrid(videos) {
+            const container = document.getElementById('videoGrid');
+
+            container.innerHTML = videos.map(video => `
+                <div class="image-card ${video.confirmed ? 'confirmed' : ''} ${!video.success ? 'failed' : ''}" data-index="${video.index}">
+                    <div style="position: relative; padding-top: 56.25%; background: #000;">
+                        ${video.videoExists && video.success ? `
+                            <video controls style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;">
+                                <source src="${video.videoUrl}?t=${Date.now()}" type="video/mp4">
+                            </video>
+                        ` : `
+                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #f66;">
+                                ${video.error ? '生成失败: ' + video.error : '视频加载中...'}
+                            </div>
+                        `}
+                    </div>
+                    <div class="image-card-body">
+                        <div class="image-card-header">
+                            <span class="image-card-index">#${video.index} ${video.hasCharacter ? '👤' : '🏞️'}</span>
+                            <span class="image-card-time">${formatTime(video.startTime)} - ${formatTime(video.endTime)}</span>
+                        </div>
+                        <div class="image-card-lyric">${video.lyric}</div>
+                        <div class="image-card-prompt" style="font-size: 11px;">${video.videoPrompt || video.prompt}</div>
+                        <div class="image-card-actions">
+                            <button class="btn btn-success" onclick="confirmVideo(${video.index})" ${video.confirmed ? 'disabled' : ''}>
+                                ${video.confirmed ? '✓ 已确认' : '确认'}
+                            </button>
+                            <button class="btn btn-warning" onclick="regenerateVideo(${video.index})">
+                                🔄 重新生成
+                            </button>
+                            <button class="btn btn-secondary" onclick="openVideoPromptModal(${video.index}, '${escapeHtml(video.videoPrompt || video.prompt)}')">
+                                ✏️ 编辑
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 确认单个视频
+        async function confirmVideo(index) {
+            try {
+                const response = await fetch('/api/confirm-video', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId, index })
+                });
+
+                const result = await response.json();
+                updateVideoStats(result);
+
+                // 更新 UI
+                const card = document.querySelector(`.image-card[data-index="${index}"]`);
+                if (card) {
+                    card.classList.add('confirmed');
+                    const btn = card.querySelector('.btn-success');
+                    if (btn) {
+                        btn.textContent = '✓ 已确认';
+                        btn.disabled = true;
+                    }
+                }
+
+            } catch (error) {
+                alert('确认失败: ' + error.message);
+            }
+        }
+
+        // 确认所有视频
+        async function confirmAllVideos() {
+            try {
+                const response = await fetch('/api/confirm-all-videos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId })
+                });
+
+                const result = await response.json();
+                updateVideoStats(result);
+
+                // 刷新视频列表
+                loadVideosForConfirmation();
+
+            } catch (error) {
+                alert('确认失败: ' + error.message);
+            }
+        }
+
+        // 重新生成单个视频
+        async function regenerateVideo(index) {
+            if (!confirm('重新生成视频需要 2-5 分钟，确定要重新生成吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/regenerate-video', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId, index })
+                });
+
+                const result = await response.json();
+                if (result.error) throw new Error(result.error);
+
+                alert('视频正在重新生成，请等待...');
+
+                // 开始轮询视频状态
+                pollVideoStatus();
+
+            } catch (error) {
+                alert('重新生成失败: ' + error.message);
+            }
+        }
+
+        // 轮询视频状态
+        function pollVideoStatus() {
+            const videoPoll = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/get-videos?projectId=${projectId}`);
+                    const data = await response.json();
+
+                    // 检查是否还有正在生成的视频
+                    if (data.confirmation.regenerating === 0) {
+                        clearInterval(videoPoll);
+                        loadVideosForConfirmation();
+                    }
+
+                } catch (error) {
+                    console.error('视频状态查询失败:', error);
+                }
+            }, 5000);
+        }
+
+        // 打开视频 Prompt 编辑弹窗
+        function openVideoPromptModal(index, prompt) {
+            currentVideoIndex = index;
+            document.getElementById('videoPromptTextarea').value = prompt.replace(/&quot;/g, '"');
+            document.getElementById('videoPromptModal').classList.add('active');
+        }
+
+        // 关闭视频 Prompt 弹窗
+        function closeVideoPromptModal() {
+            document.getElementById('videoPromptModal').classList.remove('active');
+            currentVideoIndex = null;
+        }
+
+        // 使用新 Prompt 重新生成视频
+        async function regenerateVideoWithNewPrompt() {
+            const newPrompt = document.getElementById('videoPromptTextarea').value.trim();
+            if (!newPrompt) {
+                alert('请输入视频动作描述');
+                return;
+            }
+
+            closeVideoPromptModal();
+
+            try {
+                const response = await fetch('/api/regenerate-video', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        projectId,
+                        index: currentVideoIndex,
+                        videoPrompt: newPrompt
+                    })
+                });
+
+                const result = await response.json();
+                if (result.error) throw new Error(result.error);
+
+                alert('视频正在重新生成，请等待 2-5 分钟...');
+
+                // 开始轮询视频状态
+                pollVideoStatus();
+
+            } catch (error) {
+                alert('重新生成失败: ' + error.message);
+            }
+        }
+
+        // ========== 图片确认相关函数 ==========
 
         // 加载图片列表
         async function loadImagesForConfirmation() {
@@ -1630,11 +2030,11 @@
             return text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
         }
 
-        // 继续生成 MV
+        // 继续生成视频（图片确认后）
         async function continueMvGeneration() {
             goToStep(5);
-            document.getElementById('generatingSection').style.display = 'block';
-            document.getElementById('completeSection').style.display = 'none';
+            document.getElementById('videoGeneratingSection').style.display = 'block';
+            document.getElementById('videoConfirmSection').style.display = 'none';
 
             try {
                 const response = await fetch('/api/continue-mv', {
@@ -1655,20 +2055,62 @@
                 pollProjectStatus();
 
             } catch (error) {
-                alert('生成失败: ' + error.message);
+                alert('视频生成失败: ' + error.message);
+            }
+        }
+
+        // 合成 MV（视频确认后）
+        async function continueComposeMv() {
+            goToStep(6);
+            document.getElementById('generatingSection').style.display = 'block';
+            document.getElementById('completeSection').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/continue-after-videos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId })
+                });
+
+                const result = await response.json();
+                if (result.error) throw new Error(result.error);
+
+                // 轮询状态
+                pollProjectStatus();
+
+            } catch (error) {
+                alert('MV 合成失败: ' + error.message);
             }
         }
 
         // 显示完成
         function showCompleted() {
-            goToStep(5);
+            goToStep(6);
             document.getElementById('generatingSection').style.display = 'none';
             document.getElementById('completeSection').style.display = 'block';
+
+            // 设置视频播放器源
+            const videoPlayer = document.getElementById('mvPreviewPlayer');
+            videoPlayer.src = `/api/download-mv?projectId=${projectId}`;
+            videoPlayer.load();
+        }
+
+        // 重新播放 MV
+        function replayMv() {
+            const videoPlayer = document.getElementById('mvPreviewPlayer');
+            videoPlayer.currentTime = 0;
+            videoPlayer.play();
         }
 
         // 下载 MV
         function downloadMv() {
-            window.open(`/api/download-mv?projectId=${projectId}`, '_blank');
+            // 创建下载链接
+            const link = document.createElement('a');
+            link.href = `/api/download-mv?projectId=${projectId}`;
+            link.download = `mv_${projectId}.mp4`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         // 启动

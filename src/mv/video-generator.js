@@ -741,9 +741,159 @@ async function checkAPIConnection() {
     }
 }
 
+/**
+ * 重新生成单个视频（支持自定义 prompt）
+ * @param {object} segment - 分段数据
+ * @param {string} imagePath - 首帧图片路径
+ * @param {string} outputPath - 视频输出路径
+ * @param {string} customPrompt - 自定义视频动作描述（可选）
+ * @param {object} options - 配置选项
+ * @returns {Promise<object>} 生成结果
+ */
+async function regenerateVideo(segment, imagePath, outputPath, customPrompt = null, options = {}) {
+    console.log(`Regenerating video for segment ${segment.index}: ${segment.lyric.substring(0, 30)}...`);
+
+    // 使用自定义 prompt 或原始 prompt
+    const videoPrompt = customPrompt || segment.videoPrompt || segment.prompt || '';
+
+    try {
+        // 读取首帧图片
+        if (!fs.existsSync(imagePath)) {
+            throw new Error(`First frame image not found: ${imagePath}`);
+        }
+        const firstFrameImage = imageToBase64(imagePath);
+        const segmentDuration = segment.duration || segment.videoDuration || 6;
+
+        // 检查是否是超长片段 (需要多个视频拼接)
+        if (segmentDuration > LONG_SEGMENT_THRESHOLD) {
+            console.log(`  Regenerating long segment (${segmentDuration.toFixed(2)}s > ${LONG_SEGMENT_THRESHOLD}s)`);
+
+            const numVideos = Math.ceil(segmentDuration / 10);
+            const tempDir = path.dirname(outputPath);
+            const clipPaths = [];
+            const tempFiles = [];
+
+            let currentFirstFrame = firstFrameImage;
+
+            for (let i = 0; i < numVideos; i++) {
+                const clipPath = path.join(tempDir, `temp_regen_clip_${segment.index}_${i}_${Date.now()}.mp4`);
+                tempFiles.push(clipPath);
+
+                console.log(`  [${i + 1}/${numVideos}] Regenerating video clip...`);
+
+                try {
+                    await generateSingleVideoClip(currentFirstFrame, videoPrompt, clipPath, 10, options);
+                    clipPaths.push(clipPath);
+
+                    if (i < numVideos - 1) {
+                        const lastFramePath = path.join(tempDir, `temp_regen_lastframe_${segment.index}_${i}_${Date.now()}.png`);
+                        tempFiles.push(lastFramePath);
+                        await extractLastFrame(clipPath, lastFramePath);
+                        currentFirstFrame = imageToBase64(lastFramePath);
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                    }
+                } catch (clipError) {
+                    for (const f of tempFiles) {
+                        try { fs.unlinkSync(f); } catch(e) {}
+                    }
+                    throw clipError;
+                }
+            }
+
+            await concatVideos(clipPaths, outputPath);
+
+            for (const f of tempFiles) {
+                try { fs.unlinkSync(f); } catch(e) {}
+            }
+
+            let finalDuration = 0;
+            try {
+                const durationStr = execSync(
+                    `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${outputPath}"`,
+                    { encoding: 'utf-8' }
+                ).trim();
+                finalDuration = parseFloat(durationStr) || 0;
+            } catch(e) {}
+
+            return {
+                success: true,
+                index: segment.index,
+                path: outputPath,
+                duration: finalDuration,
+                videoPrompt: videoPrompt,
+                multiClip: true,
+                clipCount: numVideos
+            };
+        }
+
+        // 普通片段：单个视频生成
+        const apiVideoDuration = segmentDuration <= 6 ? 6 : 10;
+        console.log(`  Segment duration: ${segmentDuration.toFixed(2)}s → API request: ${apiVideoDuration}s`);
+        console.log(`  Video prompt: ${videoPrompt.substring(0, 80)}...`);
+
+        const createResult = await createVideoTask({
+            model: options.model || config.videoGeneration.minimax.model,
+            firstFrameImage: firstFrameImage,
+            prompt: videoPrompt,
+            promptOptimizer: options.promptOptimizer !== false,
+            duration: apiVideoDuration,
+            aigcWatermark: options.aigcWatermark !== false
+        });
+
+        if (createResult.base_resp && createResult.base_resp.status_code !== 0) {
+            throw new Error(`Create task failed: ${createResult.base_resp.status_msg}`);
+        }
+
+        const taskId = createResult.task_id;
+        if (!taskId) {
+            throw new Error('No task_id in response');
+        }
+
+        console.log(`  Video task created: ${taskId}`);
+
+        const completedResult = await waitForVideoCompletion(taskId, options.maxWaitMs);
+
+        let videoUrl = null;
+        if (completedResult.file && completedResult.file.download_url) {
+            videoUrl = completedResult.file.download_url;
+        } else if (completedResult.video && completedResult.video.download_url) {
+            videoUrl = completedResult.video.download_url;
+        } else if (completedResult.download_url) {
+            videoUrl = completedResult.download_url;
+        } else if (completedResult.file_id) {
+            videoUrl = await getVideoDownloadUrl(completedResult.file_id);
+        }
+
+        if (!videoUrl) {
+            throw new Error('No video URL in completed result');
+        }
+
+        console.log(`  Downloading video...`);
+        await downloadVideo(videoUrl, outputPath);
+
+        return {
+            success: true,
+            index: segment.index,
+            path: outputPath,
+            taskId: taskId,
+            duration: completedResult.duration || apiVideoDuration,
+            videoPrompt: videoPrompt
+        };
+
+    } catch (error) {
+        console.error(`Video regeneration failed for segment ${segment.index}:`, error.message);
+        return {
+            success: false,
+            index: segment.index,
+            error: error.message
+        };
+    }
+}
+
 module.exports = {
     generateVideo,
     generateVideos,
+    regenerateVideo,
     createVideoTask,
     queryVideoTask,
     waitForVideoCompletion,

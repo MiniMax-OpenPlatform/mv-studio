@@ -36,11 +36,16 @@ module.exports = {
         output: 'temp/output'
     },
 
-    // 腾讯云 ASR 配置 (歌词识别)
+    // 腾讯云 ASR 配置 (歌词识别) - 已弃用
     tencent: {
         secretId: process.env.TENCENT_SECRET_ID || '',
         secretKey: process.env.TENCENT_SECRET_KEY || '',
         region: 'ap-shanghai'
+    },
+
+    // 阿里云 DashScope 配置 (Qwen3-ASR-Flash)
+    aliyun: {
+        dashscopeApiKey: process.env.DASHSCOPE_API_KEY || ''
     },
 
     // LLM 配置（分镜生成）
@@ -114,7 +119,7 @@ module.exports = {
         GENERATING_IMAGES: 'generating_images',
         AWAITING_IMAGE_CONFIRM: 'awaiting_image_confirm',
         GENERATING_VIDEOS: 'generating_videos',
-        ANIMATING_IMAGES: 'animating_images',
+        AWAITING_VIDEO_CONFIRM: 'awaiting_video_confirm',
         COMPOSING_MV: 'composing_mv',
         COMPLETED: 'completed',
         FAILED: 'failed'

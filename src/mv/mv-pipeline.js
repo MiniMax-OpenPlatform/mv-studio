@@ -37,6 +37,12 @@ class MVPipeline {
                 confirmed: [],    // 已确认的图片索引
                 pending: [],      // 待确认的图片索引
                 regenerating: []  // 正在重新生成的图片索引
+            },
+            // 视频确认状态
+            videoConfirmation: {
+                confirmed: [],    // 已确认的视频索引
+                pending: [],      // 待确认的视频索引
+                regenerating: []  // 正在重新生成的视频索引
             }
         };
         this.callbacks = {
@@ -481,6 +487,200 @@ class MVPipeline {
     }
 
     /**
+     * 获取所有视频信息（用于确认环节）
+     */
+    getVideosForConfirmation() {
+        const videoDir = path.join(this.projectDir, 'videos');
+        const videos = [];
+
+        for (const segment of this.data.classifiedSegments) {
+            const paddedIndex = String(segment.index).padStart(3, '0');
+            const videoPath = path.join(videoDir, `video_${paddedIndex}.mp4`);
+
+            const videoResult = this.data.videoResults?.find(r => r.index === segment.index);
+
+            videos.push({
+                index: segment.index,
+                lyric: segment.lyric,
+                startTime: segment.startTime,
+                endTime: segment.endTime,
+                duration: segment.duration,
+                hasCharacter: segment.hasCharacter,
+                prompt: segment.prompt,
+                videoPrompt: segment.videoPrompt || segment.prompt || '',
+                videoPath: videoPath,
+                videoExists: fs.existsSync(videoPath),
+                videoUrl: `/projects/${this.projectId}/videos/video_${paddedIndex}.mp4`,
+                imageUrl: `/projects/${this.projectId}/images/image_${paddedIndex}.png`,
+                confirmed: this.data.videoConfirmation?.confirmed?.includes(segment.index) || false,
+                success: videoResult?.success || false,
+                error: videoResult?.error || null
+            });
+        }
+
+        return videos;
+    }
+
+    /**
+     * 确认单个视频
+     */
+    confirmVideo(index) {
+        const confirmation = this.data.videoConfirmation;
+
+        // 从 pending 移到 confirmed
+        const pendingIdx = confirmation.pending.indexOf(index);
+        if (pendingIdx !== -1) {
+            confirmation.pending.splice(pendingIdx, 1);
+        }
+
+        if (!confirmation.confirmed.includes(index)) {
+            confirmation.confirmed.push(index);
+        }
+
+        this.saveProjectData();
+
+        return {
+            confirmed: confirmation.confirmed.length,
+            pending: confirmation.pending.length,
+            total: this.data.classifiedSegments.length
+        };
+    }
+
+    /**
+     * 确认所有视频
+     */
+    confirmAllVideos() {
+        const confirmation = this.data.videoConfirmation;
+        // 只确认成功生成的视频
+        const successIndexes = this.data.videoResults
+            ?.filter(r => r.success)
+            .map(r => r.index) || [];
+
+        confirmation.confirmed = successIndexes;
+        confirmation.pending = [];
+
+        this.saveProjectData();
+
+        return {
+            confirmed: confirmation.confirmed.length,
+            pending: 0,
+            total: this.data.classifiedSegments.length
+        };
+    }
+
+    /**
+     * 重新生成单个视频
+     */
+    async regenerateVideo(index, newVideoPrompt = null) {
+        const segment = this.data.classifiedSegments.find(s => s.index === index);
+        if (!segment) {
+            throw new Error(`Segment ${index} not found`);
+        }
+
+        // 如果提供了新的视频 prompt，更新它
+        if (newVideoPrompt) {
+            segment.videoPrompt = newVideoPrompt;
+        }
+
+        const confirmation = this.data.videoConfirmation;
+        confirmation.regenerating.push(index);
+        this.saveProjectData();
+
+        const imageDir = path.join(this.projectDir, 'images');
+        const videoDir = path.join(this.projectDir, 'videos');
+        const paddedIndex = String(index).padStart(3, '0');
+        const imagePath = path.join(imageDir, `image_${paddedIndex}.png`);
+        const outputPath = path.join(videoDir, `video_${paddedIndex}.mp4`);
+
+        console.log(`Regenerating video ${index}: ${(newVideoPrompt || segment.videoPrompt || segment.prompt).substring(0, 50)}...`);
+
+        try {
+            const result = await videoGenerator.regenerateVideo(
+                segment,
+                imagePath,
+                outputPath,
+                newVideoPrompt || segment.videoPrompt,
+                {}
+            );
+
+            // 更新状态
+            const regenIdx = confirmation.regenerating.indexOf(index);
+            if (regenIdx !== -1) {
+                confirmation.regenerating.splice(regenIdx, 1);
+            }
+
+            if (result.success) {
+                // 添加到 pending（需要重新确认）
+                if (!confirmation.pending.includes(index)) {
+                    confirmation.pending.push(index);
+                }
+                // 从 confirmed 移除
+                const confirmedIdx = confirmation.confirmed.indexOf(index);
+                if (confirmedIdx !== -1) {
+                    confirmation.confirmed.splice(confirmedIdx, 1);
+                }
+
+                // 更新 videoResults
+                const resultIdx = this.data.videoResults.findIndex(r => r.index === index);
+                if (resultIdx !== -1) {
+                    this.data.videoResults[resultIdx] = {
+                        ...result,
+                        lyric: segment.lyric
+                    };
+                } else {
+                    this.data.videoResults.push({
+                        ...result,
+                        lyric: segment.lyric
+                    });
+                }
+            }
+
+            this.saveProjectData();
+
+            return {
+                success: result.success,
+                index: index,
+                videoPrompt: newVideoPrompt || segment.videoPrompt || segment.prompt,
+                videoUrl: `/projects/${this.projectId}/videos/video_${paddedIndex}.mp4?t=${Date.now()}`,
+                error: result.error
+            };
+
+        } catch (error) {
+            // 移除 regenerating 状态
+            const regenIdx = confirmation.regenerating.indexOf(index);
+            if (regenIdx !== -1) {
+                confirmation.regenerating.splice(regenIdx, 1);
+            }
+            this.saveProjectData();
+
+            throw error;
+        }
+    }
+
+    /**
+     * 更新视频 Prompt
+     */
+    updateVideoPrompt(index, newVideoPrompt) {
+        const segment = this.data.classifiedSegments.find(s => s.index === index);
+        if (segment) {
+            segment.videoPrompt = newVideoPrompt;
+        }
+
+        this.saveProjectData();
+
+        return { success: true, index, videoPrompt: newVideoPrompt };
+    }
+
+    /**
+     * 检查是否所有视频都已确认
+     */
+    isAllVideosConfirmed() {
+        const confirmation = this.data.videoConfirmation;
+        if (!confirmation) return false;
+        return confirmation.pending.length === 0 && confirmation.regenerating.length === 0;
+    }
+
+    /**
      * 步骤 5: 生成视频（需要图片确认后才能执行）
      */
     async generateVideos(options = {}) {
@@ -490,17 +690,9 @@ class MVPipeline {
 
         this.updateStatus(ProjectStatus.GENERATING_VIDEOS, 60);
 
-        let videoSegments;
-
-        if (options.allVideo) {
-            console.log('Step 5: Generating AI videos (全视频模式)...');
-            videoSegments = this.data.classifiedSegments;
-        } else {
-            console.log('Step 5: Generating AI videos...');
-            videoSegments = this.data.classifiedSegments.filter(
-                s => s.renderType === segmentClassifier.RenderType.VIDEO
-            );
-        }
+        // 全部使用 AI 视频生成
+        console.log('Step 5: Generating AI videos (全视频模式)...');
+        const videoSegments = this.data.classifiedSegments;
 
         if (videoSegments.length === 0) {
             console.log('No video segments to generate');
@@ -519,7 +711,7 @@ class MVPipeline {
             videoDir,
             {
                 ...options,
-                generateFallbackAnimation: true
+                generateFallbackAnimation: false  // 不使用动画备份
             },
             (progress) => {
                 const overallProgress = 60 + (progress.percentage * 0.25);
@@ -530,8 +722,18 @@ class MVPipeline {
         const successCount = results.filter(r => r.success).length;
         this.data.videoResults = results;
 
+        // 初始化视频确认状态：所有成功生成的视频都待确认
+        this.data.videoConfirmation = {
+            confirmed: [],
+            pending: results.filter(r => r.success).map(r => r.index),
+            regenerating: []
+        };
+
         console.log(`Generated ${successCount}/${results.length} AI videos`);
         this.updateProgress(85, `AI 视频生成完成: ${successCount}/${results.length}`);
+
+        // 进入等待视频确认状态
+        this.updateStatus(ProjectStatus.AWAITING_VIDEO_CONFIRM, 85);
 
         this.saveProjectData();
         return results;
@@ -617,7 +819,7 @@ class MVPipeline {
     }
 
     /**
-     * 继续执行（从图片确认后）
+     * 继续执行（从图片确认后）- 生成视频并等待确认
      * 强制使用全视频模式：所有分镜都使用 AI 视频生成
      */
     async continueAfterImageConfirmation(audioPath, options = {}) {
@@ -633,9 +835,40 @@ class MVPipeline {
             };
 
             await this.generateVideos(videoOptions);
-            // 不再调用 animateImages，完全使用 AI 视频
-            // await this.animateImages(...);
 
+            // 此时状态为 AWAITING_VIDEO_CONFIRM，等待用户确认视频
+            console.log(`\n${'='.repeat(50)}`);
+            console.log(`视频生成完成，等待用户确认`);
+            console.log(`${'='.repeat(50)}\n`);
+
+            return {
+                success: true,
+                projectId: this.projectId,
+                status: this.status,
+                videosForConfirmation: this.getVideosForConfirmation()
+            };
+
+        } catch (error) {
+            console.error('视频生成失败:', error);
+            this.reportError(error);
+
+            return {
+                success: false,
+                projectId: this.projectId,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * 继续执行（从视频确认后）- 合成最终 MV
+     */
+    async continueAfterVideoConfirmation(audioPath, options = {}) {
+        if (!this.isAllVideosConfirmed()) {
+            throw new Error('请先确认所有视频');
+        }
+
+        try {
             await this.composeMV(audioPath, options.composeOptions || {});
 
             return {
@@ -646,7 +879,7 @@ class MVPipeline {
             };
 
         } catch (error) {
-            console.error('继续生成失败:', error);
+            console.error('MV 合成失败:', error);
             this.reportError(error);
 
             return {
@@ -732,6 +965,7 @@ class MVPipeline {
                 storyboardCount: this.data.storyboard?.length || 0,
                 classificationStats: this.data.classificationStats,
                 imageConfirmation: this.data.imageConfirmation,
+                videoConfirmation: this.data.videoConfirmation,
                 outputPath: this.data.outputPath
             }
         };

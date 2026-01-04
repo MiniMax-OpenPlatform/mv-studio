@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 const config = require('./src/config');
-const asrService = require('./src/lyrics/asr-service');
+const aliyunASR = require('./src/lyrics/aliyun-asr-service');
 const audioConverter = require('./src/lyrics/audio-converter');
 const lyricsSlicer = require('./src/lyrics/lyrics-slicer');
 const { MVPipeline, ProjectStatus } = require('./src/mv/mv-pipeline');
@@ -243,6 +243,10 @@ const server = http.createServer(async (req, res) => {
             const originalAudioPath = path.join(pipeline.projectDir, filename);
             fs.writeFileSync(originalAudioPath, audioData);
 
+            // 同时保存为 audio.mp3 供前端播放器使用
+            const audioPlayerPath = path.join(pipeline.projectDir, 'audio.mp3');
+            fs.writeFileSync(audioPlayerPath, audioData);
+
             // 转换音频格式（用于 ASR）
             const convertedAudioPath = path.join(pipeline.projectDir, 'audio_converted.wav');
             audioConverter.convertAudio(originalAudioPath, convertedAudioPath);
@@ -266,7 +270,7 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
-        // API: 开始 ASR 识别
+        // API: 开始 ASR 识别（阿里云 Qwen3-ASR-Flash 同步模式）
         if (url.pathname === '/api/recognize' && req.method === 'POST') {
             const body = await parseBody(req);
             const { projectId } = body;
@@ -277,27 +281,38 @@ const server = http.createServer(async (req, res) => {
                 return;
             }
 
-            // 读取转换后的音频
-            const audioData = fs.readFileSync(project.convertedAudioPath);
-
-            // 检查文件大小
-            const MAX_SIZE = 5 * 1024 * 1024;
-            const audioToSend = audioData.length > MAX_SIZE
-                ? audioData.slice(0, MAX_SIZE)
-                : audioData;
-
-            console.log(`发送到 ASR 的数据大小: ${(audioToSend.length / 1024 / 1024).toFixed(2)} MB`);
-
-            // 创建识别任务
-            const result = await asrService.createRecognizeTask(audioToSend.toString('base64'));
-
-            project.asrTaskId = result.taskId;
             project.pipeline.updateStatus(ProjectStatus.RECOGNIZING_LYRICS, 15);
+
+            // 异步执行识别（不阻塞响应）
+            (async () => {
+                try {
+                    console.log('开始阿里云 ASR 识别...');
+                    const tempDir = path.dirname(project.originalAudioPath);
+                    const result = await aliyunASR.recognizeAudio(project.originalAudioPath, tempDir);
+
+                    // 智能切片
+                    const slicedLyrics = lyricsSlicer.sliceLyrics(result.lyrics, project.duration);
+                    project.rawLyrics = result.lyrics;
+                    project.slicedLyrics = slicedLyrics;
+
+                    // 生成 LRC
+                    const lrcContent = lyricsSlicer.generateLRC(slicedLyrics);
+                    project.lrcContent = lrcContent;
+                    project.asrCompleted = true;
+
+                    project.pipeline.updateStatus(ProjectStatus.LYRICS_READY, 25);
+                    console.log(`ASR 识别完成，共 ${slicedLyrics.length} 句歌词`);
+                } catch (error) {
+                    console.error('ASR 识别失败:', error);
+                    project.asrError = error.message;
+                    project.asrCompleted = true;
+                }
+            })();
 
             sendJSON(res, {
                 projectId,
-                taskId: result.taskId,
-                message: '识别任务已创建'
+                message: '识别已开始，请轮询获取结果',
+                mode: 'async'
             });
             return;
         }
@@ -305,47 +320,33 @@ const server = http.createServer(async (req, res) => {
         // API: 获取识别结果
         if (url.pathname === '/api/get-result' && req.method === 'POST') {
             const body = await parseBody(req);
-            const { projectId, taskId } = body;
+            const { projectId } = body;
 
             const project = activeProjects.get(projectId);
-            const actualTaskId = taskId || project?.asrTaskId;
-
-            if (!actualTaskId) {
-                sendError(res, '任务 ID 不存在', 400);
+            if (!project) {
+                sendError(res, '项目不存在', 404);
                 return;
             }
 
-            const result = await asrService.getTaskResult(actualTaskId);
+            // 检查识别是否完成
+            if (project.asrError) {
+                sendJSON(res, {
+                    status: 'failed',
+                    error: project.asrError
+                });
+                return;
+            }
 
-            // 检查是否完成
-            if (result.Response?.Data?.Status === 2) {
-                // 解析结果（传入音频时长用于估算）
-                const audioDuration = project?.duration || 180;
-                const lyrics = asrService.parseASRResult(result, audioDuration);
-
-                if (project) {
-                    // 智能切片
-                    const slicedLyrics = lyricsSlicer.sliceLyrics(lyrics, project.duration);
-                    project.rawLyrics = lyrics;
-                    project.slicedLyrics = slicedLyrics;
-
-                    // 生成 LRC
-                    const lrcContent = lyricsSlicer.generateLRC(slicedLyrics);
-                    project.lrcContent = lrcContent;
-
-                    project.pipeline.updateStatus(ProjectStatus.LYRICS_READY, 25);
-                }
-
+            if (project.asrCompleted && project.slicedLyrics) {
                 sendJSON(res, {
                     status: 'completed',
-                    lyrics: project?.slicedLyrics || lyrics,
-                    lrcContent: project?.lrcContent,
-                    raw: result
+                    lyrics: project.slicedLyrics,
+                    lrcContent: project.lrcContent
                 });
             } else {
                 sendJSON(res, {
-                    status: result.Response?.Data?.Status === 0 ? 'waiting' : 'processing',
-                    raw: result
+                    status: 'processing',
+                    message: 'AI 正在识别歌词...'
                 });
             }
             return;
@@ -737,7 +738,7 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
-        // API: 继续生成 MV（图片确认后）
+        // API: 继续生成 MV（图片确认后）- 生成视频
         if (url.pathname === '/api/continue-mv' && req.method === 'POST') {
             const body = await parseBody(req);
             const { projectId, options = {} } = body;
@@ -753,26 +754,161 @@ const server = http.createServer(async (req, res) => {
                 return;
             }
 
-            // 异步继续生成
+            // 异步继续生成视频（会在视频生成后等待确认）
             project.pipeline.continueAfterImageConfirmation(
                 project.originalAudioPath,
                 {
                     videoOptions: {
-                        allVideo: options.allVideo === true,
+                        allVideo: true,
                         ...(options.video || {})
-                    },
-                    animationOptions: options.animation || {},
-                    composeOptions: options.compose || {}
+                    }
                 }
             ).then(result => {
-                console.log('MV 生成完成:', result);
+                console.log('视频生成完成，等待确认:', result);
             }).catch(error => {
-                console.error('MV 生成失败:', error);
+                console.error('视频生成失败:', error);
             });
 
             sendJSON(res, {
                 projectId,
-                message: 'MV 继续生成中'
+                message: '视频生成中，请等待'
+            });
+            return;
+        }
+
+        // API: 获取视频列表（用于确认）
+        if (url.pathname === '/api/get-videos' && req.method === 'GET') {
+            const projectId = url.searchParams.get('projectId');
+
+            const project = activeProjects.get(projectId);
+            if (!project) {
+                sendError(res, '项目不存在', 404);
+                return;
+            }
+
+            const videos = project.pipeline.getVideosForConfirmation();
+            const confirmation = project.pipeline.data.videoConfirmation || { confirmed: [], pending: [], regenerating: [] };
+
+            sendJSON(res, {
+                projectId,
+                videos,
+                confirmation: {
+                    confirmed: confirmation.confirmed.length,
+                    pending: confirmation.pending.length,
+                    regenerating: confirmation.regenerating.length,
+                    total: videos.length
+                }
+            });
+            return;
+        }
+
+        // API: 确认单个视频
+        if (url.pathname === '/api/confirm-video' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const { projectId, index } = body;
+
+            const project = activeProjects.get(projectId);
+            if (!project) {
+                sendError(res, '项目不存在', 404);
+                return;
+            }
+
+            const result = project.pipeline.confirmVideo(index);
+            sendJSON(res, result);
+            return;
+        }
+
+        // API: 确认所有视频
+        if (url.pathname === '/api/confirm-all-videos' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const { projectId } = body;
+
+            const project = activeProjects.get(projectId);
+            if (!project) {
+                sendError(res, '项目不存在', 404);
+                return;
+            }
+
+            const result = project.pipeline.confirmAllVideos();
+            sendJSON(res, result);
+            return;
+        }
+
+        // API: 重新生成单个视频
+        if (url.pathname === '/api/regenerate-video' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const { projectId, index, videoPrompt } = body;
+
+            const project = activeProjects.get(projectId);
+            if (!project) {
+                sendError(res, '项目不存在', 404);
+                return;
+            }
+
+            // 异步重新生成视频
+            project.pipeline.regenerateVideo(index, videoPrompt)
+                .then(result => {
+                    console.log(`视频 ${index} 重新生成完成:`, result.success);
+                })
+                .catch(error => {
+                    console.error(`视频 ${index} 重新生成失败:`, error);
+                });
+
+            sendJSON(res, {
+                projectId,
+                index,
+                message: '视频重新生成中，请等待'
+            });
+            return;
+        }
+
+        // API: 更新视频 Prompt
+        if (url.pathname === '/api/update-video-prompt' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const { projectId, index, videoPrompt } = body;
+
+            const project = activeProjects.get(projectId);
+            if (!project) {
+                sendError(res, '项目不存在', 404);
+                return;
+            }
+
+            const result = project.pipeline.updateVideoPrompt(index, videoPrompt);
+            sendJSON(res, result);
+            return;
+        }
+
+        // API: 视频确认后继续合成 MV
+        if (url.pathname === '/api/continue-after-videos' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const { projectId, options = {} } = body;
+
+            const project = activeProjects.get(projectId);
+            if (!project) {
+                sendError(res, '项目不存在', 404);
+                return;
+            }
+
+            if (!project.pipeline.isAllVideosConfirmed()) {
+                sendError(res, '请先确认所有视频', 400);
+                return;
+            }
+
+            // 异步合成 MV
+            project.pipeline.continueAfterVideoConfirmation(
+                project.originalAudioPath,
+                {
+                    composeOptions: options.compose || {}
+                }
+            ).then(result => {
+                console.log('MV 合成完成:', result);
+            }).catch(error => {
+                console.error('MV 合成失败:', error);
+            });
+
+            sendJSON(res, {
+                projectId,
+                message: 'MV 合成中，请等待'
             });
             return;
         }
