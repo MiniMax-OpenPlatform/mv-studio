@@ -4,7 +4,7 @@
 
 ## 功能特性
 
-- **歌词识别** - 基于腾讯云 ASR 自动识别音频中的歌词和时间戳
+- **歌词识别** - 基于阿里云 Qwen3-ASR-Flash 自动识别音频中的歌词和时间戳
 - **智能分镜** - 使用 AI 大模型根据歌词内容生成分镜脚本
 - **图片生成** - AI 生成符合歌词意境的配图
 - **视频合成** - 自动将图片、音频合成为完整 MV
@@ -12,8 +12,8 @@
 ## 技术栈
 
 - **后端**: Node.js
-- **语音识别**: 腾讯云 ASR
-- **LLM**: MiniMax / OpenAI / Gemini (可选)
+- **语音识别**: 阿里云 Qwen3-ASR-Flash
+- **LLM**: MiniMax
 - **图片生成**: MiniMax Image API
 - **视频生成**: MiniMax Video API
 
@@ -46,12 +46,10 @@ cp .env.example .env
 2. 编辑 `.env` 文件，填入你的 API 密钥：
 
 ```bash
-# 腾讯云 ASR (歌词识别)
-TENCENT_SECRET_ID=your_tencent_secret_id
-TENCENT_SECRET_KEY=your_tencent_secret_key
+# 阿里云 DashScope (歌词识别 - Qwen3-ASR-Flash)
+DASHSCOPE_API_KEY=your_dashscope_api_key
 
-# LLM (分镜生成) - 选择一个
-LLM_PROVIDER=minimax
+# LLM (分镜生成)
 MINIMAX_LLM_API_KEY=your_minimax_llm_api_key
 
 # 图片生成
@@ -73,10 +71,8 @@ npm start
 
 | 服务 | 获取地址 |
 |------|----------|
-| 腾讯云 ASR | https://console.cloud.tencent.com/cam/capi |
+| 阿里云 DashScope | https://dashscope.console.aliyun.com/ |
 | MiniMax | https://www.minimaxi.com/ |
-| OpenAI | https://platform.openai.com/api-keys |
-| Gemini | https://aistudio.google.com/app/apikey |
 
 ## 项目结构
 
@@ -87,7 +83,7 @@ mv-studio/
 ├── src/
 │   ├── config/           # 配置管理
 │   ├── lyrics/           # 歌词识别模块
-│   │   ├── asr-service.js
+│   │   ├── aliyun-asr-service.js  # 阿里云 Qwen3-ASR-Flash
 │   │   ├── audio-converter.js
 │   │   └── lyrics-slicer.js
 │   └── mv/               # MV 生成模块
