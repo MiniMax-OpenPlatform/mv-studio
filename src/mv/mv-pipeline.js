@@ -513,6 +513,7 @@ class MVPipeline {
                 videoUrl: `/projects/${this.projectId}/videos/video_${paddedIndex}.mp4`,
                 imageUrl: `/projects/${this.projectId}/images/image_${paddedIndex}.png`,
                 confirmed: this.data.videoConfirmation?.confirmed?.includes(segment.index) || false,
+                regenerating: this.data.videoConfirmation?.regenerating?.includes(segment.index) || false,
                 success: videoResult?.success || false,
                 error: videoResult?.error || null
             });
@@ -710,6 +711,8 @@ class MVPipeline {
             imageDir,
             videoDir,
             {
+                concurrency: config.videoGeneration.concurrency || 3,
+                delayMs: config.videoGeneration.delayMs || 3000,
                 ...options,
                 generateFallbackAnimation: false  // 不使用动画备份
             },

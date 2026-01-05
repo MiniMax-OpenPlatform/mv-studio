@@ -659,44 +659,77 @@ async function generateVideos(segments, imageDir, videoDir, options = {}, onProg
     const total = segments.length;
     const failedSegments = []; // 记录失败的片段，用于后续生成动画备份
 
+    // 并发配置：RPM 30 = 每2秒1个请求，设置并发3-5较安全
+    const concurrency = options.concurrency || 3;
+    const delayMs = options.delayMs || 3000; // 批次间延迟，确保不超过 RPM 限制
+
+    console.log(`视频生成配置: 并发数=${concurrency}, 批次延迟=${delayMs}ms`);
+
     // 确保输出目录存在
     if (!fs.existsSync(videoDir)) {
         fs.mkdirSync(videoDir, { recursive: true });
     }
 
-    // 视频生成通常串行处理（避免 API 限制）
-    for (let i = 0; i < total; i++) {
-        const segment = segments[i];
-        const paddedIndex = String(segment.index).padStart(3, '0');
+    // 批量并行处理视频生成
+    for (let i = 0; i < total; i += concurrency) {
+        const batch = segments.slice(i, Math.min(i + concurrency, total));
+        const batchStartIndex = i;
 
-        const imagePath = path.join(imageDir, `image_${paddedIndex}.png`);
-        const outputPath = path.join(videoDir, `video_${paddedIndex}.mp4`);
+        console.log(`\n处理批次 ${Math.floor(i / concurrency) + 1}/${Math.ceil(total / concurrency)}, 包含 ${batch.length} 个视频...`);
 
-        const result = await generateVideo(segment, imagePath, outputPath, options);
-        result.lyric = segment.lyric;
+        // 并行生成当前批次的视频
+        const batchPromises = batch.map(async (segment, batchIndex) => {
+            const paddedIndex = String(segment.index).padStart(3, '0');
+            const imagePath = path.join(imageDir, `image_${paddedIndex}.png`);
+            const outputPath = path.join(videoDir, `video_${paddedIndex}.mp4`);
 
-        // 如果失败，记录以便后续生成动画备份
-        if (!result.success) {
-            failedSegments.push(segment);
-            console.log(`  ⚠️ 片段 ${paddedIndex} 视频生成失败，将生成动画备份`);
-        }
+            // 检查视频是否已存在（支持断点续传）
+            if (fs.existsSync(outputPath) && options.skipExisting !== false) {
+                const stat = fs.statSync(outputPath);
+                if (stat.size > 10000) {  // 文件大于 10KB 认为有效
+                    console.log(`  ⏭️ 片段 ${paddedIndex} 视频已存在，跳过`);
+                    return {
+                        success: true,
+                        index: segment.index,
+                        path: outputPath,
+                        lyric: segment.lyric,
+                        skipped: true
+                    };
+                }
+            }
 
-        results.push(result);
+            const result = await generateVideo(segment, imagePath, outputPath, options);
+            result.lyric = segment.lyric;
+
+            // 如果失败，记录以便后续生成动画备份
+            if (!result.success) {
+                failedSegments.push(segment);
+                console.log(`  ⚠️ 片段 ${paddedIndex} 视频生成失败，将生成动画备份`);
+            }
+
+            return result;
+        });
+
+        // 等待当前批次完成
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
 
         // 进度回调
         if (onProgress) {
+            const completed = Math.min(i + concurrency, total);
             onProgress({
-                completed: i + 1,
+                completed: completed,
                 total: total,
-                percentage: Math.round(((i + 1) / total) * 100),
-                lastResult: result,
+                percentage: Math.round((completed / total) * 100),
+                lastResults: batchResults,
                 failedCount: failedSegments.length
             });
         }
 
-        // 请求间隔
-        if (i < total - 1) {
-            await new Promise(resolve => setTimeout(resolve, options.delayMs || 2000));
+        // 批次间延迟（避免 API 频率限制）
+        if (i + concurrency < total) {
+            console.log(`等待 ${delayMs}ms 后处理下一批次...`);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
         }
     }
 

@@ -392,7 +392,74 @@
         }
 
         .image-card.regenerating {
-            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .image-card.regenerating .image-card-actions button {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 单个卡片的加载遮罩 */
+        .card-loading-overlay {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+        }
+
+        .image-card.regenerating .card-loading-overlay {
+            display: flex;
+        }
+
+        .card-loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .card-loading-text {
+            color: white;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .card-progress-bar {
+            width: 80%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .card-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+            animation: progress-pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes progress-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
         }
 
         .image-card img {
@@ -638,6 +705,114 @@
             font-size: 14px;
             line-height: 1.5;
         }
+
+        /* 历史任务样式 */
+        .history-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .history-header h3 {
+            color: rgba(255,255,255,0.8);
+            font-size: 1.2em;
+        }
+
+        .history-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .history-item:hover {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .history-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .history-item-id {
+            font-family: monospace;
+            font-size: 12px;
+            color: rgba(255,255,255,0.5);
+        }
+
+        .history-item-time {
+            font-size: 12px;
+            color: rgba(255,255,255,0.4);
+        }
+
+        .history-item-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .history-item-status.completed {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+
+        .history-item-status.in-progress {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ff9800;
+        }
+
+        .history-item-status.failed {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+        }
+
+        .history-item-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 13px;
+            color: rgba(255,255,255,0.6);
+        }
+
+        .history-item-stats span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .history-empty {
+            text-align: center;
+            padding: 40px;
+            color: rgba(255,255,255,0.4);
+        }
+
+        .history-loading {
+            text-align: center;
+            padding: 30px;
+            color: rgba(255,255,255,0.5);
+        }
     </style>
 </head>
 <body>
@@ -685,6 +860,19 @@
                         <div class="progress-fill" id="uploadProgressFill" style="width: 0%"></div>
                     </div>
                     <p class="progress-text" id="uploadProgressText">上传中...</p>
+                </div>
+
+                <!-- 历史任务区域 -->
+                <div class="history-section" id="historySection">
+                    <div class="history-header">
+                        <h3>📂 继续历史任务</h3>
+                        <button class="btn btn-secondary" onclick="loadHistoryProjects()" style="padding: 6px 15px; font-size: 13px;">
+                            🔄 刷新
+                        </button>
+                    </div>
+                    <div class="history-list" id="historyList">
+                        <div class="history-loading">加载中...</div>
+                    </div>
                 </div>
             </div>
 
@@ -1650,15 +1838,25 @@
             const container = document.getElementById('videoGrid');
 
             container.innerHTML = videos.map(video => `
-                <div class="image-card ${video.confirmed ? 'confirmed' : ''} ${!video.success ? 'failed' : ''}" data-index="${video.index}">
+                <div class="image-card ${video.confirmed ? 'confirmed' : ''} ${!video.success ? 'failed' : ''} ${video.regenerating ? 'regenerating' : ''}" data-index="${video.index}" style="position: relative;">
+                    <!-- 加载遮罩 -->
+                    <div class="card-loading-overlay">
+                        <div class="card-loading-spinner"></div>
+                        <div class="card-loading-text">正在重新生成视频...<br><small style="opacity: 0.7;">预计需要 2-5 分钟</small></div>
+                        <div class="card-progress-bar">
+                            <div class="card-progress-fill" style="width: 20%;"></div>
+                        </div>
+                    </div>
                     <div style="position: relative; padding-top: 56.25%; background: #000;">
                         ${video.videoExists && video.success ? `
                             <video controls style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain;">
                                 <source src="${video.videoUrl}?t=${Date.now()}" type="video/mp4">
                             </video>
                         ` : `
-                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #f66;">
-                                ${video.error ? '生成失败: ' + video.error : '视频加载中...'}
+                            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; color: #f66;">
+                                <span style="font-size: 40px;">🎬</span>
+                                <span style="margin-top: 10px;">${video.error ? '生成失败: ' + video.error : (video.videoExists === false ? '视频文件不存在' : '视频加载中...')}</span>
+                                ${!video.videoExists ? '<span style="font-size: 12px; color: #888; margin-top: 5px;">请点击"重新生成"</span>' : ''}
                             </div>
                         `}
                     </div>
@@ -1673,10 +1871,10 @@
                             <button class="btn btn-success" onclick="confirmVideo(${video.index})" ${video.confirmed ? 'disabled' : ''}>
                                 ${video.confirmed ? '✓ 已确认' : '确认'}
                             </button>
-                            <button class="btn btn-warning" onclick="regenerateVideo(${video.index})">
+                            <button class="btn btn-warning" onclick="regenerateVideo(${video.index})" ${video.regenerating ? 'disabled' : ''}>
                                 🔄 重新生成
                             </button>
-                            <button class="btn btn-secondary" onclick="openVideoPromptModal(${video.index}, '${escapeHtml(video.videoPrompt || video.prompt)}')">
+                            <button class="btn btn-secondary" onclick="openVideoPromptModal(${video.index}, '${escapeHtml(video.videoPrompt || video.prompt)}')" ${video.regenerating ? 'disabled' : ''}>
                                 ✏️ 编辑
                             </button>
                         </div>
@@ -1739,6 +1937,12 @@
                 return;
             }
 
+            // 立即显示加载状态
+            const card = document.querySelector(`.image-card[data-index="${index}"]`);
+            if (card) {
+                card.classList.add('regenerating');
+            }
+
             try {
                 const response = await fetch('/api/regenerate-video', {
                     method: 'POST',
@@ -1747,16 +1951,47 @@
                 });
 
                 const result = await response.json();
-                if (result.error) throw new Error(result.error);
+                if (result.error) {
+                    if (card) card.classList.remove('regenerating');
+                    throw new Error(result.error);
+                }
 
-                alert('视频正在重新生成，请等待...');
-
-                // 开始轮询视频状态
-                pollVideoStatus();
+                // 开始轮询视频状态（只针对这个视频）
+                pollSingleVideoStatus(index);
 
             } catch (error) {
                 alert('重新生成失败: ' + error.message);
+                if (card) card.classList.remove('regenerating');
             }
+        }
+
+        // 轮询单个视频的状态
+        function pollSingleVideoStatus(targetIndex) {
+            const videoPoll = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/get-videos?projectId=${projectId}`);
+                    const data = await response.json();
+
+                    // 找到目标视频
+                    const targetVideo = data.videos.find(v => v.index === targetIndex);
+
+                    if (targetVideo && !targetVideo.regenerating) {
+                        clearInterval(videoPoll);
+
+                        // 只更新这一个卡片
+                        const card = document.querySelector(`.image-card[data-index="${targetIndex}"]`);
+                        if (card) {
+                            card.classList.remove('regenerating');
+                        }
+
+                        // 刷新整个视频列表以获取最新状态
+                        loadVideosForConfirmation();
+                    }
+
+                } catch (error) {
+                    console.error('视频状态查询失败:', error);
+                }
+            }, 5000);
         }
 
         // 轮询视频状态
@@ -1799,7 +2034,14 @@
                 return;
             }
 
+            const targetIndex = currentVideoIndex;
             closeVideoPromptModal();
+
+            // 立即显示加载状态
+            const card = document.querySelector(`.image-card[data-index="${targetIndex}"]`);
+            if (card) {
+                card.classList.add('regenerating');
+            }
 
             try {
                 const response = await fetch('/api/regenerate-video', {
@@ -1807,21 +2049,23 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         projectId,
-                        index: currentVideoIndex,
+                        index: targetIndex,
                         videoPrompt: newPrompt
                     })
                 });
 
                 const result = await response.json();
-                if (result.error) throw new Error(result.error);
+                if (result.error) {
+                    if (card) card.classList.remove('regenerating');
+                    throw new Error(result.error);
+                }
 
-                alert('视频正在重新生成，请等待 2-5 分钟...');
-
-                // 开始轮询视频状态
-                pollVideoStatus();
+                // 开始轮询单个视频状态
+                pollSingleVideoStatus(targetIndex);
 
             } catch (error) {
                 alert('重新生成失败: ' + error.message);
+                if (card) card.classList.remove('regenerating');
             }
         }
 
@@ -1856,9 +2100,29 @@
             const container = document.getElementById('imageGrid');
 
             container.innerHTML = images.map(img => `
-                <div class="image-card ${img.confirmed ? 'confirmed' : ''}" data-index="${img.index}">
-                    <img src="${img.imageUrl}?t=${Date.now()}" alt="Scene ${img.index}"
-                         onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 9%22><rect fill=%22%23333%22 width=%2216%22 height=%229%22/><text x=%228%22 y=%225%22 fill=%22%23666%22 text-anchor=%22middle%22 font-size=%221%22>Loading...</text></svg>'">
+                <div class="image-card ${img.confirmed ? 'confirmed' : ''} ${!img.imageExists ? 'missing' : ''}" data-index="${img.index}" style="position: relative;">
+                    <!-- 加载遮罩 -->
+                    <div class="card-loading-overlay">
+                        <div class="card-loading-spinner"></div>
+                        <div class="card-loading-text">正在重新生成图片...</div>
+                        <div class="card-progress-bar">
+                            <div class="card-progress-fill" style="width: 30%;"></div>
+                        </div>
+                    </div>
+                    ${img.imageExists ? `
+                        <img src="${img.imageUrl}?t=${Date.now()}" alt="Scene ${img.index}"
+                             onerror="this.parentElement.classList.add('missing'); this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="image-missing-placeholder" style="display: none; aspect-ratio: 16/9; background: #2a2a2a; align-items: center; justify-content: center; color: #888; flex-direction: column;">
+                            <span style="font-size: 40px;">🖼️</span>
+                            <span style="margin-top: 10px;">图片加载失败</span>
+                        </div>
+                    ` : `
+                        <div class="image-missing-placeholder" style="display: flex; aspect-ratio: 16/9; background: #2a2a2a; align-items: center; justify-content: center; color: #f66; flex-direction: column;">
+                            <span style="font-size: 40px;">❌</span>
+                            <span style="margin-top: 10px;">图片文件不存在</span>
+                            <span style="font-size: 12px; color: #888; margin-top: 5px;">请点击"重新生成"</span>
+                        </div>
+                    `}
                     <div class="image-card-body">
                         <div class="image-card-header">
                             <span class="image-card-index">#${img.index} ${img.hasCharacter ? '👤' : '🏞️'}</span>
@@ -1867,7 +2131,7 @@
                         <div class="image-card-lyric">${img.lyric}</div>
                         <div class="image-card-prompt">${img.prompt}</div>
                         <div class="image-card-actions">
-                            <button class="btn btn-success" onclick="confirmImage(${img.index})" ${img.confirmed ? 'disabled' : ''}>
+                            <button class="btn btn-success" onclick="confirmImage(${img.index})" ${img.confirmed || !img.imageExists ? 'disabled' : ''}>
                                 ${img.confirmed ? '✓ 已确认' : '确认'}
                             </button>
                             <button class="btn btn-warning" onclick="regenerateImage(${img.index})">
@@ -2113,8 +2377,268 @@
             document.body.removeChild(link);
         }
 
+        // ========== 历史任务相关函数 ==========
+
+        // 加载历史任务列表
+        async function loadHistoryProjects() {
+            const container = document.getElementById('historyList');
+            container.innerHTML = '<div class="history-loading">加载中...</div>';
+
+            try {
+                const response = await fetch('/api/history-projects');
+                const data = await response.json();
+
+                if (data.projects && data.projects.length > 0) {
+                    container.innerHTML = data.projects.map(project => {
+                        const statusInfo = getStatusInfo(project.status);
+                        const timeStr = formatDateTime(project.createdAt);
+
+                        return `
+                            <div class="history-item" onclick="restoreProject('${project.projectId}', '${project.status}')">
+                                <div class="history-item-header">
+                                    <span class="history-item-id">${project.projectId.substring(0, 8)}...</span>
+                                    <span class="history-item-time">${timeStr}</span>
+                                </div>
+                                <div class="history-item-status ${statusInfo.class}">${statusInfo.text}</div>
+                                <div class="history-item-stats">
+                                    <span>🎵 ${project.hasAudio ? '有音频' : '无音频'}</span>
+                                    <span>📝 ${project.lyricsCount} 句</span>
+                                    <span>🖼️ ${project.imageCount} 图</span>
+                                    <span>🎬 ${project.videoCount} 视频</span>
+                                    ${project.hasOutput ? '<span style="color: #4caf50;">✅ 已完成</span>' : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    container.innerHTML = '<div class="history-empty">暂无历史任务</div>';
+                }
+
+            } catch (error) {
+                console.error('加载历史任务失败:', error);
+                container.innerHTML = '<div class="history-empty">加载失败，请刷新重试</div>';
+            }
+        }
+
+        // 获取状态信息
+        function getStatusInfo(status) {
+            const statusMap = {
+                'init': { text: '初始化', class: 'in-progress' },
+                'lyrics_ready': { text: '歌词已就绪', class: 'in-progress' },
+                'generating_storyboard': { text: '生成分镜中', class: 'in-progress' },
+                'generating_images': { text: '生成图片中', class: 'in-progress' },
+                'awaiting_image_confirm': { text: '待确认图片', class: 'in-progress' },
+                'generating_videos': { text: '生成视频中', class: 'in-progress' },
+                'awaiting_video_confirm': { text: '待确认视频', class: 'in-progress' },
+                'composing_mv': { text: '合成MV中', class: 'in-progress' },
+                'completed': { text: '已完成', class: 'completed' },
+                'failed': { text: '失败', class: 'failed' }
+            };
+            return statusMap[status] || { text: status, class: 'in-progress' };
+        }
+
+        // 格式化日期时间
+        function formatDateTime(isoString) {
+            const date = new Date(isoString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+
+            if (diffMins < 1) return '刚刚';
+            if (diffMins < 60) return `${diffMins} 分钟前`;
+            if (diffHours < 24) return `${diffHours} 小时前`;
+            if (diffDays < 7) return `${diffDays} 天前`;
+
+            return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+        }
+
+        // 恢复历史任务
+        async function restoreProject(projectIdToRestore, status) {
+            try {
+                const response = await fetch('/api/restore-project', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectId: projectIdToRestore })
+                });
+
+                const result = await response.json();
+                // 注意：result.error 是 API 错误，result.data.error 是项目失败错误
+                if (!response.ok) throw new Error(result.error || '恢复失败');
+
+                // 设置全局 projectId
+                projectId = projectIdToRestore;
+                audioDuration = result.duration || 180;
+
+                // 将项目的 error 信息合并到 data 中，供 navigateToStep 使用
+                const data = result.data || {};
+                if (result.error) {
+                    data.error = result.error;
+                }
+
+                // 根据状态跳转到对应步骤
+                await navigateToStep(result.status, data);
+
+            } catch (error) {
+                alert('恢复任务失败: ' + error.message);
+            }
+        }
+
+        // 根据状态导航到对应步骤
+        async function navigateToStep(status, data) {
+            console.log('navigateToStep:', status, 'projectId:', projectId);
+
+            switch (status) {
+                case 'created':
+                    // 刚创建，需要选择歌词来源
+                    goToStep(2);
+                    showLyricsSourceChoice();
+                    break;
+
+                case 'recognizing_lyrics':
+                    // 正在识别歌词，显示识别中状态并轮询
+                    goToStep(2);
+                    document.getElementById('lyricsSourceSection').style.display = 'none';
+                    document.getElementById('recognitionStatus').innerHTML = `
+                        <div style="text-align: center; padding: 40px;">
+                            <div class="spinner" style="margin: 0 auto 20px;"></div>
+                            <p>正在识别歌词，请稍候...</p>
+                        </div>
+                    `;
+                    document.getElementById('recognitionStatus').style.display = 'block';
+                    pollProjectStatus();
+                    break;
+
+                case 'init':
+                case 'lyrics_ready':
+                    // 需要确认歌词
+                    if (data && data.lyrics && data.lyrics.length > 0) {
+                        showLyrics(data.lyrics);
+                        goToStep(3);
+                        initAudioPlayer();
+                    } else if (data && data.lrcContent) {
+                        // 有 LRC 内容，解析并显示
+                        goToStep(2);
+                        showLyricsSourceChoice();
+                        alert('请重新确认歌词来源');
+                    } else {
+                        // 需要重新选择歌词来源
+                        goToStep(2);
+                        showLyricsSourceChoice();
+                    }
+                    break;
+
+                case 'generating_storyboard':
+                case 'generating_images':
+                    // 正在生成图片，跳转到图片确认页面并轮询
+                    goToStep(4);
+                    document.getElementById('imageGrid').innerHTML = '<p style="text-align: center; padding: 40px;">正在生成分镜和图片...</p>';
+                    pollProjectStatus();
+                    break;
+
+                case 'awaiting_image_confirm':
+                    // 等待图片确认
+                    goToStep(4);
+                    loadImagesForConfirmation();
+                    break;
+
+                case 'generating_videos':
+                    // 正在生成视频
+                    goToStep(5);
+                    document.getElementById('videoGeneratingSection').style.display = 'block';
+                    document.getElementById('videoConfirmSection').style.display = 'none';
+                    pollProjectStatus();
+                    break;
+
+                case 'awaiting_video_confirm':
+                    // 等待视频确认
+                    goToStep(5);
+                    loadVideosForConfirmation();
+                    break;
+
+                case 'composing_mv':
+                    // 正在合成 MV
+                    goToStep(6);
+                    document.getElementById('generatingSection').style.display = 'block';
+                    document.getElementById('completeSection').style.display = 'none';
+                    pollProjectStatus();
+                    break;
+
+                case 'completed':
+                    // 已完成，显示结果
+                    console.log('Showing completed MV for project:', projectId);
+                    goToStep(6);
+                    document.getElementById('generatingSection').style.display = 'none';
+                    document.getElementById('completeSection').style.display = 'block';
+
+                    // 先检查视频文件是否存在
+                    const videoUrl = `/api/download-mv?projectId=${projectId}&t=${Date.now()}`;
+                    try {
+                        const checkResp = await fetch(videoUrl, { method: 'HEAD' });
+                        if (checkResp.ok) {
+                            // 视频存在，设置播放器
+                            const videoPlayer = document.getElementById('mvPreviewPlayer');
+                            console.log('Video URL:', videoUrl);
+                            videoPlayer.src = videoUrl;
+                            videoPlayer.load();
+                        } else {
+                            // 视频文件不存在
+                            document.getElementById('completeSection').innerHTML = `
+                                <div style="text-align: center; padding: 40px;">
+                                    <div style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                                    <h3 style="color: #ff9800; margin-bottom: 15px;">视频文件缺失</h3>
+                                    <p style="color: rgba(255,255,255,0.6);">项目显示已完成，但最终 MV 文件不存在。</p>
+                                    <p style="color: rgba(255,255,255,0.6);">可能是文件被删除或合成过程未正常完成。</p>
+                                </div>
+                            `;
+                        }
+                    } catch (e) {
+                        console.error('检查视频文件失败:', e);
+                        document.getElementById('completeSection').innerHTML = `
+                            <div style="text-align: center; padding: 40px;">
+                                <div style="font-size: 48px; margin-bottom: 20px;">❌</div>
+                                <h3 style="color: #f44336; margin-bottom: 15px;">加载失败</h3>
+                                <p style="color: rgba(255,255,255,0.6);">无法加载视频文件: ${e.message}</p>
+                            </div>
+                        `;
+                    }
+                    break;
+
+                case 'failed':
+                    // 任务失败，显示错误信息
+                    const errorMsg = (data && data.error) ? data.error : '任务执行失败';
+                    alert('任务失败: ' + errorMsg);
+                    // 根据已有数据决定跳转位置
+                    if (data && data.videoResults && data.videoResults.length > 0) {
+                        goToStep(5);
+                        loadVideosForConfirmation();
+                    } else if (data && data.imageResults && data.imageResults.length > 0) {
+                        goToStep(4);
+                        loadImagesForConfirmation();
+                    } else if (data && data.lyrics && data.lyrics.length > 0) {
+                        showLyrics(data.lyrics);
+                        goToStep(3);
+                        initAudioPlayer();
+                    } else {
+                        goToStep(2);
+                        showLyricsSourceChoice();
+                    }
+                    break;
+
+                default:
+                    // 默认回到歌词来源选择
+                    console.log('Unknown status:', status);
+                    goToStep(2);
+                    showLyricsSourceChoice();
+            }
+        }
+
         // 启动
         init();
+
+        // 页面加载后加载历史任务
+        loadHistoryProjects();
     </script>
 </body>
 </html>

@@ -79,6 +79,8 @@ module.exports = {
     // 视频生成配置
     videoGeneration: {
         provider: 'minimax',
+        concurrency: parseInt(process.env.VIDEO_CONCURRENCY) || 5,  // 并发数，RPM 60 建议 5-6
+        delayMs: parseInt(process.env.VIDEO_DELAY_MS) || 2000,      // 批次间延迟(ms)
         minimax: {
             apiKey: process.env.MINIMAX_API_KEY || '',
             model: 'MiniMax-Hailuo-2.3-Fast',

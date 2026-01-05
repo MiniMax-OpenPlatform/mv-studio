@@ -212,6 +212,147 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://localhost:${PORT}`);
 
     try {
+        // ==================== 历史任务相关 API ====================
+
+        // API: 获取历史任务列表
+        if (url.pathname === '/api/history-projects' && req.method === 'GET') {
+            const projects = [];
+
+            // 扫描 temp 目录下的所有项目
+            const dirs = fs.readdirSync(TEMP_DIR);
+            for (const dir of dirs) {
+                if (dir.startsWith('.')) continue; // 跳过隐藏文件
+                const projectPath = path.join(TEMP_DIR, dir, 'project.json');
+                if (fs.existsSync(projectPath)) {
+                    try {
+                        const projectData = JSON.parse(fs.readFileSync(projectPath, 'utf-8'));
+                        const projectDir = path.join(TEMP_DIR, dir);
+
+                        // 获取项目创建时间
+                        const stats = fs.statSync(projectDir);
+
+                        // 检查是否有音频文件
+                        const hasAudio = fs.existsSync(path.join(projectDir, 'audio.mp3')) ||
+                                        fs.existsSync(path.join(projectDir, 'audio.wav'));
+
+                        // 计算图片和视频数量
+                        const imagesDir = path.join(projectDir, 'images');
+                        const videosDir = path.join(projectDir, 'videos');
+                        const imageCount = fs.existsSync(imagesDir) ?
+                            fs.readdirSync(imagesDir).filter(f => f.endsWith('.png')).length : 0;
+                        const videoCount = fs.existsSync(videosDir) ?
+                            fs.readdirSync(videosDir).filter(f => f.endsWith('.mp4')).length : 0;
+
+                        // 检查是否有最终输出
+                        const outputDir = path.join(projectDir, 'output');
+                        const hasOutput = fs.existsSync(outputDir) &&
+                            fs.readdirSync(outputDir).some(f => f.endsWith('.mp4'));
+
+                        // 获取歌词数量
+                        const lyricsCount = projectData.data?.lyrics?.length ||
+                                           projectData.data?.lrcSegments?.length || 0;
+
+                        projects.push({
+                            projectId: projectData.projectId,
+                            status: projectData.status,
+                            progress: projectData.progress,
+                            createdAt: stats.mtime.toISOString(),
+                            hasAudio,
+                            lyricsCount,
+                            imageCount,
+                            videoCount,
+                            hasOutput,
+                            error: projectData.error
+                        });
+                    } catch (e) {
+                        console.error(`读取项目 ${dir} 失败:`, e.message);
+                    }
+                }
+            }
+
+            // 按创建时间倒序排列
+            projects.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+            sendJSON(res, { projects });
+            return;
+        }
+
+        // API: 恢复历史任务
+        if (url.pathname === '/api/restore-project' && req.method === 'POST') {
+            const body = await parseBody(req);
+            const { projectId } = body;
+
+            // 检查项目是否已在活动列表中
+            if (activeProjects.has(projectId)) {
+                const project = activeProjects.get(projectId);
+                sendJSON(res, {
+                    projectId,
+                    status: project.pipeline.status,
+                    progress: project.pipeline.progress,
+                    duration: project.duration,
+                    data: project.pipeline.data,
+                    error: project.pipeline.error,
+                    message: '项目已恢复'
+                });
+                return;
+            }
+
+            const projectDir = path.join(TEMP_DIR, projectId);
+            const projectDataPath = path.join(projectDir, 'project.json');
+
+            if (!fs.existsSync(projectDataPath)) {
+                sendError(res, '项目不存在', 404);
+                return;
+            }
+
+            try {
+                // 创建新的 pipeline 并加载数据（传入 projectId，不是 projectDir）
+                const pipeline = new MVPipeline(projectId);
+                pipeline.loadProjectData();
+
+                // 查找音频文件
+                let originalAudioPath = path.join(projectDir, 'audio.mp3');
+                if (!fs.existsSync(originalAudioPath)) {
+                    originalAudioPath = path.join(projectDir, 'audio.wav');
+                }
+
+                let convertedAudioPath = path.join(projectDir, 'audio_converted.wav');
+                if (!fs.existsSync(convertedAudioPath)) {
+                    convertedAudioPath = originalAudioPath;
+                }
+
+                // 获取音频时长
+                let duration = 180;
+                try {
+                    duration = audioConverter.getAudioDuration(originalAudioPath);
+                } catch (e) {
+                    console.warn('获取音频时长失败:', e.message);
+                }
+
+                // 添加到活动项目
+                activeProjects.set(projectId, {
+                    pipeline,
+                    originalAudioPath,
+                    convertedAudioPath,
+                    duration
+                });
+
+                sendJSON(res, {
+                    projectId,
+                    status: pipeline.status,
+                    progress: pipeline.progress,
+                    duration,
+                    data: pipeline.data,
+                    error: pipeline.error,
+                    message: '项目已恢复'
+                });
+
+            } catch (error) {
+                sendError(res, '恢复项目失败: ' + error.message);
+            }
+            return;
+        }
+
         // ==================== 歌词识别相关 API ====================
 
         // API: 上传音频并开始识别
@@ -913,17 +1054,43 @@ const server = http.createServer(async (req, res) => {
             return;
         }
 
-        // API: 下载 MV
-        if (url.pathname === '/api/download-mv' && req.method === 'GET') {
-            const projectId = url.searchParams.get('projectId');
+        // API: 下载 MV (支持 GET 和 HEAD 请求)
+        if (url.pathname === '/api/download-mv' && (req.method === 'GET' || req.method === 'HEAD')) {
+            const reqProjectId = url.searchParams.get('projectId');
 
-            const project = activeProjects.get(projectId);
-            if (!project) {
-                sendError(res, '项目不存在', 404);
-                return;
+            let outputPath = null;
+
+            // 首先尝试从活动项目获取
+            const project = activeProjects.get(reqProjectId);
+            if (project && project.pipeline.data.outputPath) {
+                outputPath = project.pipeline.data.outputPath;
             }
 
-            const outputPath = project.pipeline.data.outputPath;
+            // 如果活动项目中没有，尝试直接从文件系统读取
+            if (!outputPath || !fs.existsSync(outputPath)) {
+                const projectDir = path.join(TEMP_DIR, reqProjectId);
+                const projectDataPath = path.join(projectDir, 'project.json');
+
+                if (fs.existsSync(projectDataPath)) {
+                    try {
+                        const projectData = JSON.parse(fs.readFileSync(projectDataPath, 'utf-8'));
+                        if (projectData.data && projectData.data.outputPath) {
+                            outputPath = projectData.data.outputPath;
+                        }
+                    } catch (e) {
+                        console.error('读取项目数据失败:', e.message);
+                    }
+                }
+
+                // 如果还是没有，尝试默认路径
+                if (!outputPath || !fs.existsSync(outputPath)) {
+                    const defaultPath = path.join(projectDir, 'output', 'mv_final.mp4');
+                    if (fs.existsSync(defaultPath)) {
+                        outputPath = defaultPath;
+                    }
+                }
+            }
+
             if (!outputPath || !fs.existsSync(outputPath)) {
                 sendError(res, 'MV 文件不存在', 404);
                 return;
@@ -933,9 +1100,15 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(200, {
                 'Content-Type': 'video/mp4',
                 'Content-Length': stat.size,
-                'Content-Disposition': `attachment; filename="mv_${projectId}.mp4"`
+                'Content-Disposition': `attachment; filename="mv_${reqProjectId}.mp4"`
             });
-            fs.createReadStream(outputPath).pipe(res);
+
+            // HEAD 请求只返回头部，不发送文件内容
+            if (req.method === 'HEAD') {
+                res.end();
+            } else {
+                fs.createReadStream(outputPath).pipe(res);
+            }
             return;
         }
 
